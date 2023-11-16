@@ -1,0 +1,10 @@
+pre-commit:
+  # piped: true
+  parallel: true
+  commands:
+    php-lint:
+      glob: "*.{php}"
+      run: composer lint {staged_files}
+    php-compatibility:
+      glob: "src/**/*.php"
+      run: composer compat {staged_files}

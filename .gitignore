@@ -1,0 +1,5 @@
+vendor/
+.php-cs-fixer.cache
+tests.config.php
+.phpunit.result.cache
+composer.lock
