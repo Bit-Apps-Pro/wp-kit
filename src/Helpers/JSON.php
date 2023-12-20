@@ -6,7 +6,7 @@ final class JSON
 {
     public static function encode($data, $options = 0, $depth = 512)
     {
-        return json_encode($data, $options, $depth);
+        return wp_json_encode($data, $options, $depth);
     }
 
     public static function maybeEncode($data, $options = 0, $depth = 512)
