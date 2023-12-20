@@ -239,7 +239,7 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
                 strpos($this->contentType(), 'form-data')                === false
                 && strpos($this->contentType(), 'x-www-form-urlencoded') === false
             ) {
-                $this->_body = JSON::maybeDecode(file_get_contents('php://input'));
+                $this->_body = JSON::maybeDecode(file_get_contents('php://input'), true);
             }
 
             $this->_body = (array) $this->_body + (array) $_POST;
