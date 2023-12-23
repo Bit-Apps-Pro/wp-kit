@@ -17,28 +17,28 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 {
     use IpTool;
 
-    private $_route;
+    protected $route;
 
-    private $_rest;
+    protected $rest;
 
-    private $_attributes = [];
+    protected $attributes = [];
 
-    private $_queryParams = [];
+    protected $queryParams = [];
 
-    private $_routeParams = [];
+    protected $routeParams = [];
 
-    private $_body = [];
+    protected $body = [];
 
     /**
      * Undocumented function.
      */
     public function __construct(RouteRegister $route = null)
     {
-        $this->_route = $route;
+        $this->route = $route;
         $this->setBody();
         $this->setQueryParams();
         $this->setRouteParams();
-        $this->_attributes = (array) $this->_queryParams + (array) $this->_body + (array) $this->_routeParams;
+        $this->attributes = (array) $this->queryParams + (array) $this->body + (array) $this->routeParams;
     }
 
     public function __isset($offset)
@@ -63,8 +63,8 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function __call($method, $parameters)
     {
-        if (isset($this->_rest) && method_exists($this->_rest, $method)) {
-            return \call_user_func_array([$this->_rest, $method], $parameters);
+        if (isset($this->rest) && method_exists($this->rest, $method)) {
+            return \call_user_func_array([$this->rest, $method], $parameters);
         }
 
         throw new RuntimeException('Undefined method [' . (string) $method . '] called on ' . __CLASS__ . 'class.');
@@ -82,7 +82,7 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function queryParams()
     {
-        return $this->_queryParams;
+        return $this->queryParams;
     }
 
     /**
@@ -92,12 +92,12 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
      */
     public function getRoute()
     {
-        return $this->_route;
+        return $this->route;
     }
 
     public function body()
     {
-        return $this->_body;
+        return $this->body;
     }
 
     public function method()
@@ -115,8 +115,8 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
         $this->setBody((array) $request->get_body_params() + (array) $request->get_json_params());
         $this->setQueryParams((array) $request->get_query_params());
         $this->setRouteParams((array) $request->get_url_params());
-        $this->_attributes = (array) $request->get_params();
-        $this->_rest       = $request;
+        $this->attributes = (array) $request->get_params();
+        $this->rest       = $request;
     }
 
     /**
@@ -131,12 +131,12 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function all()
     {
-        return $this->_attributes;
+        return $this->attributes;
     }
 
     public function get($offset, $default = null)
     {
-        return Arr::get($this->_attributes, $offset, $default);
+        return Arr::get($this->attributes, $offset, $default);
     }
 
     public function input($offset, $default = null)
@@ -157,9 +157,9 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function has($offset)
     {
-        return Arr::has($this->_attributes, $offset);
+        return Arr::has($this->attributes, $offset);
 
-        // return isset($this->_attributes[$offset]);
+        // return isset($this->attributes[$offset]);
     }
 
     #[ReturnTypeWillChange]
@@ -189,12 +189,12 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
     #[ReturnTypeWillChange]
     public function jsonSerialize()
     {
-        return $this->_attributes;
+        return $this->attributes;
     }
 
     public function validate($rules, $messages = null, $attributeLabels = null)
     {
-        $validator = $this->make($this->_attributes, $rules, $messages, $attributeLabels);
+        $validator = $this->make($this->attributes, $rules, $messages, $attributeLabels);
 
         if ($validator->fails()) {
             $response = [
@@ -209,50 +209,52 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
         return $validator->validated();
     }
 
-    private function setQueryParams($params = [])
+    protected function setQueryParams($params = [])
     {
         if (!empty($params)) {
-            $this->_queryParams = $params;
+            $this->queryParams = $params;
         } elseif (isset($_GET)) {
-            $this->_queryParams = $_GET;
+            $this->queryParams = $_GET;
         }
     }
 
-    private function setRouteParams($params = [])
+    protected function setRouteParams($params = [])
     {
         if (!empty($params)) {
-            $this->_routeParams = $params;
+            $this->routeParams = $params;
             foreach ($params as $name => $value) {
-                $this->_route->setRouteParamValue($name, $value);
+                $this->route->setRouteParamValue($name, $value);
             }
-        } elseif (isset($this->_route) && !\is_null($this->_route)) {
-            $this->_routeParams = (array) $this->_route->getRouteParamValues();
+        } elseif (isset($this->route) && !\is_null($this->route)) {
+            $this->routeParams = (array) $this->route->getRouteParamValues();
         }
     }
 
-    private function setBody($body = [])
+    protected function setBody($body = [])
     {
         if (!empty($body)) {
-            $this->_body = $body;
+            $this->body = $body;
         } else {
             if (
                 strpos($this->contentType(), 'form-data')                === false
                 && strpos($this->contentType(), 'x-www-form-urlencoded') === false
             ) {
-                $this->_body = JSON::maybeDecode(file_get_contents('php://input'));
+                $this->body = JSON::maybeDecode(file_get_contents('php://input'));
             }
 
-            $this->_body = (array) $this->_body + (array) $_POST;
+            if (!empty($_POST)) {
+                $this->body = (array) $this->body + (array) $_POST;
+            }
         }
     }
 
-    private function setAttribute($key, $value)
+    protected function setAttribute($key, $value)
     {
-        $this->_attributes[$key] = $value;
+        $this->attributes[$key] = $value;
     }
 
-    private function unsetAttribute($key)
+    protected function unsetAttribute($key)
     {
-        unset($this->_attributes[$key]);
+        unset($this->attributes[$key]);
     }
 }
