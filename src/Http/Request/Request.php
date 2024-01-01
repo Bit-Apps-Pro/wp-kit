@@ -3,6 +3,7 @@
 namespace BitApps\WPKit\Http\Request;
 
 use ArrayAccess;
+use BitApps\WPKit\Configs\JsonConfig;
 use BitApps\WPKit\Helpers\Arr;
 use BitApps\WPKit\Helpers\JSON;
 use BitApps\WPKit\Http\IpTool;
@@ -239,7 +240,7 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
                 strpos($this->contentType(), 'form-data')                === false
                 && strpos($this->contentType(), 'x-www-form-urlencoded') === false
             ) {
-                $this->body = JSON::maybeDecode(file_get_contents('php://input'));
+                $this->body = JSON::maybeDecode(file_get_contents('php://input'), JsonConfig::decodeAsArray());
             }
 
             if (!empty($_POST)) {
