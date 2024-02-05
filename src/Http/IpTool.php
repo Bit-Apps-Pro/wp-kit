@@ -73,7 +73,7 @@ trait IpTool
     {
         return isset(
             $_SERVER['HTTP_USER_AGENT']
-        ) ? self::getBrowserName($_SERVER['HTTP_USER_AGENT']) . '|' . self::getOS($_SERVER['HTTP_USER_AGENT']) : '';
+        ) ? self::getBrowserName(wp_kses($_SERVER['HTTP_USER_AGENT'], [])) . '|' . self::getOS(wp_kses($_SERVER['HTTP_USER_AGENT'], [])) : '';
     }
 
     /**
