@@ -50,20 +50,20 @@ trait IpTool
     private static function checkIP()
     {
         if (getenv('HTTP_CLIENT_IP')) {
-            $ip = getenv('HTTP_CLIENT_IP');
+            $ip = sanitize_text_field(getenv('HTTP_CLIENT_IP'));
         } elseif (getenv('HTTP_X_FORWARDED_FOR')) {
-            $ip = getenv('HTTP_X_FORWARDED_FOR');
+            $ip = sanitize_text_field(getenv('HTTP_X_FORWARDED_FOR'));
         } elseif (getenv('HTTP_X_FORWARDED')) {
-            $ip = getenv('HTTP_X_FORWARDED');
+            $ip = sanitize_text_field(getenv('HTTP_X_FORWARDED'));
         } elseif (getenv('HTTP_FORWARDED_FOR')) {
-            $ip = getenv('HTTP_FORWARDED_FOR');
+            $ip = sanitize_text_field(getenv('HTTP_FORWARDED_FOR'));
         } elseif (getenv('HTTP_FORWARDED')) {
-            $ip = getenv('HTTP_FORWARDED');
+            $ip = sanitize_text_field(getenv('HTTP_FORWARDED'));
         } else {
-            $ip = $_SERVER['REMOTE_ADDR'];
+            $ip = sanitize_text_field($_SERVER['REMOTE_ADDR']);
         }
 
-        return $ip;
+       return filter_var($ip, FILTER_VALIDATE_IP);
     }
 
     /**
@@ -73,7 +73,7 @@ trait IpTool
     {
         return isset(
             $_SERVER['HTTP_USER_AGENT']
-        ) ? self::getBrowserName($_SERVER['HTTP_USER_AGENT']) . '|' . self::getOS($_SERVER['HTTP_USER_AGENT']) : '';
+        ) ? self::getBrowserName(wp_kses($_SERVER['HTTP_USER_AGENT'], [])) . '|' . self::getOS(wp_kses($_SERVER['HTTP_USER_AGENT'], [])) : '';
     }
 
     /**

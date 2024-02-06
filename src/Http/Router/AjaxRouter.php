@@ -27,22 +27,24 @@ final class AjaxRouter
 
     public function addRoute(RouteRegister $route)
     {
-        if (
-            !isset($_REQUEST['action'])
-            || strpos($_REQUEST['action'], $this->_router->getAjaxPrefix()) === false
-            || !\in_array(strtoupper($_SERVER['REQUEST_METHOD']), $route->getMethods())
+
+        $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '';
+        $action = isset($_REQUEST['action']) ? sanitize_text_field($_REQUEST['action']) : '';
+
+        if (strpos($action, $this->_router->getAjaxPrefix()) === false
+            || !\in_array(strtoupper($requestMethod), $route->getMethods())
         ) {
             return;
         }
 
-        $requestPath = str_replace($this->_router->getAjaxPrefix(), '', $_REQUEST['action']);
+        $requestPath = str_replace($this->_router->getAjaxPrefix(), '', $action);
         if (!$this->isRouteMatched($route, $requestPath)) {
             return;
         }
 
-        Hooks::addAction('wp_ajax_' . $_REQUEST['action'], [$route, 'handleRequest']);
+        Hooks::addAction('wp_ajax_' . $action, [$route, 'handleRequest']);
         if ($route->isNoAuth()) {
-            Hooks::addAction('wp_ajax_nopriv_' . $_REQUEST['action'], [$route, 'handleRequest']);
+            Hooks::addAction('wp_ajax_nopriv_' . $action, [$route, 'handleRequest']);
         }
 
         $this->_router->addRegisteredRoute($this->currentRouteName(), $route);
@@ -50,7 +52,10 @@ final class AjaxRouter
 
     public function currentRouteName()
     {
-        return $_SERVER['REQUEST_METHOD'] . $_REQUEST['action'];
+        $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '';
+        $action = isset($_REQUEST['action']) ? sanitize_text_field($_REQUEST['action']) : '';
+        
+        return $requestMethod. $action;
     }
 
     /**

@@ -103,7 +103,7 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function method()
     {
-        return $_SERVER['REQUEST_METHOD'];
+        return sanitize_text_field($_SERVER['REQUEST_METHOD']);
     }
 
     public function contentType()
