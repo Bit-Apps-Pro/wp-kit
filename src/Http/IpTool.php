@@ -50,19 +50,19 @@ trait IpTool
     private static function checkIP()
     {
         if (getenv('HTTP_CLIENT_IP')) {
-            $ip = getenv('HTTP_CLIENT_IP');
+            $ip = filter_var(getenv('HTTP_CLIENT_IP'), FILTER_VALIDATE_IP);
         } elseif (getenv('HTTP_X_FORWARDED_FOR')) {
-            $ip = getenv('HTTP_X_FORWARDED_FOR');
+            $ip = filter_var(getenv('HTTP_X_FORWARDED_FOR'), FILTER_VALIDATE_IP);
         } elseif (getenv('HTTP_X_FORWARDED')) {
-            $ip = getenv('HTTP_X_FORWARDED');
+            $ip = filter_var(getenv('HTTP_X_FORWARDED'), FILTER_VALIDATE_IP);
         } elseif (getenv('HTTP_FORWARDED_FOR')) {
-            $ip = getenv('HTTP_FORWARDED_FOR');
+            $ip = filter_var(getenv('HTTP_FORWARDED_FOR'), FILTER_VALIDATE_IP);
         } elseif (getenv('HTTP_FORWARDED')) {
-            $ip = getenv('HTTP_FORWARDED');
+            $ip = filter_var(getenv('HTTP_FORWARDED'), FILTER_VALIDATE_IP);
         } else {
-            $ip = sanitize_text_field($_SERVER['REMOTE_ADDR']);
+            $ip = filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP);
         }
-
+                
         return $ip;
     }
 
