@@ -60,7 +60,7 @@ trait IpTool
         } elseif (getenv('HTTP_FORWARDED')) {
             $ip = getenv('HTTP_FORWARDED');
         } else {
-            $ip = $_SERVER['REMOTE_ADDR'];
+            $ip = sanitize_text_field($_SERVER['REMOTE_ADDR']);
         }
 
         return $ip;
