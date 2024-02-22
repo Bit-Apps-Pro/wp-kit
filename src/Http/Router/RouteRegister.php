@@ -337,7 +337,7 @@ final class RouteRegister
 
     private function authorize()
     {
-        if (method_exists($this->_request, 'authorize') && $this->_request->authorize()) {
+        if (method_exists($this->_request, 'authorize') && !$this->_request->authorize()) {
             $message = 'You are not authorized to access this endpoint';
             if (method_exists($this->_request, 'failedAuthorizationMessage')) {
                 $message = $this->_request->failedAuthorizationMessage();
