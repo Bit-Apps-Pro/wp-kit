@@ -173,7 +173,7 @@ final class RouteRegister
 
             if (
                 ($middlewareObj = $router->getRegisteredMiddleware($middleware))
-                && ($response = $this->invokeAsReflection($middlewareObj, 'handle')) !== true
+                && ($response = $this->invokeAsReflection($middlewareObj, 'handle', $params)) !== true
             ) {
                 $this->setResponse($response);
                 $this->sendResponse();
@@ -216,7 +216,8 @@ final class RouteRegister
 
     public function getParamValue(ReflectionParameter $param)
     {
-        $value     = $param->isOptional() && $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+        $value = !$param->isOptional() && $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+
         $paramName = $param->getName();
         if ($isRouteParam = $this->getRouteParamValue($paramName)) {
             $value = $isRouteParam;
@@ -328,6 +329,31 @@ final class RouteRegister
             $this->_request->setApiRequest($this->_restRequest);
         }
 
+        $this->authorize();
+        $this->validate();
+
+        return $this->_request;
+    }
+
+    private function authorize()
+    {
+        if (method_exists($this->_request, 'authorize') && $this->_request->authorize()) {
+            $message = 'You are not authorized to access this endpoint';
+            if (method_exists($this->_request, 'failedAuthorizationMessage')) {
+                $message = $this->_request->failedAuthorizationMessage();
+            }
+
+            $this->setResponse(
+                Response::error([])
+                    ->code('NOT_AUTHORIZED')
+                    ->message($message)
+            );
+            $this->sendResponse();
+        }
+    }
+
+    private function validate()
+    {
         if (method_exists($this->_request, 'rules')) {
             $messages   = [];
             $attributes = [];
@@ -340,15 +366,18 @@ final class RouteRegister
                 $attributes = $this->_request->attributes();
             }
 
-            $validation = $this->_request->make($this->_request->all(), $this->_request->rules(), $messages, $attributes);
+            $validation = $this->_request->make(
+                $this->_request->all(),
+                $this->_request->rules(),
+                $messages,
+                $attributes
+            );
 
             if ($validation->fails()) {
                 $this->setResponse(Response::error($validation->errors())->code('VALIDATION'));
                 $this->sendResponse();
             }
         }
-
-        return $this->_request;
     }
 
     private function register($method, $path, $action)
@@ -394,13 +423,26 @@ final class RouteRegister
         }
     }
 
-    private function invokeAsReflection($class, $method)
+    private function invokeAsReflection($class, $method, $params = [])
     {
         $reflectionMethod = new ReflectionMethod($class, $method);
-        $params           = [];
-        foreach ($reflectionMethod->getParameters() as $id => $param) {
-            $params[] = $this->getParamValue($param);
+        $reflectionParams = $reflectionMethod->getParameters();
+
+        /**
+         * If the ReflectionMethod is a method of a Middleware then we will set the first parameter.
+         * First parameter will be Request object
+         * Rest of params will be from Middleware ex: 'role:admin'
+         *
+         * If params count is 0 then the method is handle of Middleware and called from handleMiddleware
+         */
+        $reflectionParams = \count($params) === 0 ? $reflectionParams : [$reflectionParams[0]];
+
+        $requestParams = [];
+        foreach ($reflectionParams as $param) {
+            $requestParams[] = $this->getParamValue($param);
         }
+
+        $params = array_merge($requestParams, $params);
 
         return $reflectionMethod->invoke($reflectionMethod->isStatic() ? null : new $class(), ...$params);
     }
