@@ -111,28 +111,28 @@ final class Installer
         if (version_compare(PHP_VERSION, $this->_requirements['php'], '<')) {
             // Str From WP install script
             wp_die(
-                esc_html__(
+                esc_html(
                     sprintf(
                         // translators: 1: Current PHP version, 2: Version required by the uploaded plugin.
-                        __('The PHP version on your server is %1$s, however the uploaded plugin requires %2$s.'),
+                        'The PHP version on your server is %1$s, however the uploaded plugin requires %2$s.',
                         PHP_VERSION,
                         $this->_requirements['php']
                     )
                 ),
-                esc_html__('Requirements Not Met')
+                esc_html('Requirements Not Met')
             );
         }
 
         if (version_compare(get_bloginfo('version'), $this->_requirements['wp'], '<')) {
             wp_die(
-                esc_html__(
+                esc_html(
                     sprintf(
                         // translators: 1: Current WordPress version, 2: Version required by the uploaded plugin.
-                        __('Your WordPress version is %1$s, however the uploaded plugin requires %2$s.'),
+                        'Your WordPress version is %1$s, however the uploaded plugin requires %2$s.',
                         get_bloginfo('version'),
                         $this->_requirements['wp']
                     ),
-                    esc_html__('Requirements Not Met')
+                    esc_html('Requirements Not Met')
                 )
             );
         }
