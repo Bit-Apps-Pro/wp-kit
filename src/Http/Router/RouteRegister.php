@@ -32,6 +32,8 @@ final class RouteRegister
 
     private $_regexMatched;
 
+    private $_middleware = [];
+
     /**
      * Instance of rest request
      *
@@ -153,7 +155,14 @@ final class RouteRegister
 
     public function getMiddleware()
     {
-        return $this->_routeBase->getMiddleware();
+        return array_merge($this->_routeBase->getMiddleware(), $this->_middleware);
+    }
+
+    public function middleware()
+    {
+        $this->_middleware = array_merge($this->_middleware, \func_get_args());
+
+        return $this;
     }
 
     public function handleMiddleware()
