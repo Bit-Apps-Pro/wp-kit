@@ -8,4 +8,4 @@ lefthook.yml export-ignore
 composer.lock export-ignore
 .vscode export-ignore
 .php-cs-fixer.cache export-ignore
-.phpcs.xml export-ignore
+phpcs.xml export-ignore
