@@ -43,7 +43,7 @@ final class RouteBase
 
     private $_ignoreToken;
 
-    private $_middleware;
+    private $_middleware = [];
 
     private static $_isGrouped;
 
