@@ -250,7 +250,15 @@ final class RouteRegister
             $this->setRequest($type);
             $value = $this->getRequest();
         } elseif ($isRouteParam && $value === $isRouteParam && method_exists($type, '__construct')) {
-            $value = new $type($value);
+            $constructor = new ReflectionMethod($type, '__construct');
+            if ($constructor->getNumberOfParameters() === 1) {
+                $parameter = $constructor->getParameters()[0];
+                if ($parameter->getType()->getName() != 'array') {
+                    $value = new $type($value);
+                } elseif (method_exists($type, 'query')) {
+                    $value = $type::query()->find($value);
+                }
+            }
         } elseif (!$param->isOptional()) {
             $value = new $type();
         }

@@ -88,6 +88,13 @@ final class Router
         return self::$_instance;
     }
 
+    public function registerFile($routeFile)
+    {
+        self::$_instance = $this;
+
+        include_once $routeFile;
+    }
+
     public function register()
     {
         if ($this->getRequestType() === 'ajax') {
