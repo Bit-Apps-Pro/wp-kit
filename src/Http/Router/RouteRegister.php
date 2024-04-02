@@ -253,7 +253,7 @@ final class RouteRegister
             $constructor = new ReflectionMethod($type, '__construct');
             if ($constructor->getNumberOfParameters() === 1) {
                 $parameter = $constructor->getParameters()[0];
-                if ($parameter->getType()->getName() != 'array') {
+                if ($parameter->getType() != 'array') {
                     $value = new $type($value);
                 } elseif (method_exists($type, 'query')) {
                     $value = $type::query()->find($value);
