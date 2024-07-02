@@ -344,4 +344,11 @@ final class DateTimeHelper
 
         return new DateTimeZone(self::wp_timezone_string());
     }
+
+    public function getCurrentDateTime()
+    {
+        $dateTime = new DateTime('now', self::wp_timezone());
+
+        return $dateTime->format($this->_currentFormat);
+    }
 }
