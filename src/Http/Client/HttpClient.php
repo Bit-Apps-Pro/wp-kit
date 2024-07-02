@@ -29,6 +29,8 @@ final class HttpClient
 
     private $_method;
 
+    private $_responseHeaders = [];
+
     private $_options = [];
 
     /**
@@ -235,6 +237,8 @@ final class HttpClient
 
         $decodedData = JSON::decode($responseBody);
 
+        $this->_responseHeaders = wp_remote_retrieve_headers($requestResponse);
+
         $response = empty($decodedData) ? $responseBody : $decodedData;
 
         if (!empty($responseCode)) {
@@ -246,6 +250,11 @@ final class HttpClient
         }
 
         return $response;
+    }
+
+    public function getResponseHeaders()
+    {
+        return $this->_responseHeaders;
     }
 
     private function setDefault(array $config)
