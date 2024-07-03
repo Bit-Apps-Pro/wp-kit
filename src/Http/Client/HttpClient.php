@@ -29,6 +29,10 @@ final class HttpClient
 
     private $_method;
 
+    private $_responseHeaders = [];
+
+    private $_requestResponse;
+
     private $_options = [];
 
     /**
@@ -225,7 +229,7 @@ final class HttpClient
 
         $requestResponse = wp_remote_request($url, $options);
 
-        $responseCode = wp_remote_retrieve_response_code($requestResponse);
+        $this->_requestResponse = $requestResponse;
 
         if (is_wp_error($requestResponse)) {
             return $requestResponse;
@@ -235,17 +239,19 @@ final class HttpClient
 
         $decodedData = JSON::decode($responseBody);
 
-        $response = empty($decodedData) ? $responseBody : $decodedData;
+        $this->_responseHeaders = wp_remote_retrieve_headers($requestResponse);
 
-        if (!empty($responseCode)) {
-            if (!empty($response) && \is_object($response)) {
-                $response->status_code = $responseCode;
-            } else {
-                $response = (object) ['status_code' => $responseCode];
-            }
-        }
+        return empty($decodedData) ? $responseBody : $decodedData;
+    }
 
-        return $response;
+    public function getResponseHeaders()
+    {
+        return $this->_responseHeaders;
+    }
+
+    public function getResponseCode()
+    {
+        return wp_remote_retrieve_response_code($this->_requestResponse);
     }
 
     private function setDefault(array $config)
