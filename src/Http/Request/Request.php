@@ -116,8 +116,10 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
         $this->setBody((array) $request->get_body_params() + (array) $request->get_json_params());
         $this->setQueryParams((array) $request->get_query_params());
         $this->setRouteParams((array) $request->get_url_params());
-        $this->attributes = (array) $request->get_params();
-        $this->rest       = $request;
+
+        $this->attributes = (array) $this->queryParams + (array) $this->body + (array) $this->routeParams;
+
+        $this->rest = $request;
     }
 
     /**
