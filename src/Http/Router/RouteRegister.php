@@ -37,6 +37,13 @@ final class RouteRegister
     /**
      * Instance of rest request
      *
+     * @var WP_REST_Response
+     */
+    private $_restResponse;
+
+    /**
+     * Instance of rest request
+     *
      * @var WP_REST_Request
      */
     private $_restRequest;
@@ -314,7 +321,10 @@ final class RouteRegister
 
         $this->handleMiddleware();
         $this->handleAction($this);
-        ob_clean();
+
+        if (ob_get_level()) {
+            ob_clean();
+        }
 
         return $this->sendResponse();
     }
@@ -365,6 +375,7 @@ final class RouteRegister
                     ->code('NOT_AUTHORIZED')
                     ->message($message)
             );
+
             $this->sendResponse();
         }
     }
@@ -459,6 +470,11 @@ final class RouteRegister
             $requestParams[] = $this->getParamValue($param);
         }
 
+        if (wp_is_serving_rest_request() && isset($this->_restResponse)) {
+            // maybe failed at middleware,authorization or validation
+
+            return Response::instance();
+        }
         $params = array_merge($requestParams, $params);
 
         return $reflectionMethod->invoke($reflectionMethod->isStatic() ? null : new $class(), ...$params);
@@ -514,6 +530,8 @@ final class RouteRegister
         $restResponse->set_data($this->_response['data']);
         $restResponse->set_status($this->_response['http_status']);
         $restResponse->set_headers($this->_response['headers']);
+
+        $this->_restResponse = $restResponse; // will USE this to return before middleware or action  excutes
 
         return $restResponse;
     }
