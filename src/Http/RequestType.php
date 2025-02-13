@@ -28,13 +28,13 @@ final class RequestType
                 return is_admin();
 
             case self::AJAX:
-                return \defined('DOING_AJAX');
+                return \defined('DOING_AJAX') && DOING_AJAX;
 
             case self::CRON:
-                return \defined('DOING_CRON');
+                return \defined('DOING_CRON') && DOING_CRON;
 
             case self::API:
-                return \defined('REST_REQUEST');
+                return \defined('REST_REQUEST') && REST_REQUEST;
 
             case self::FRONTEND:
                 return (!is_admin() || \defined('DOING_AJAX')) && !\defined('DOING_CRON');

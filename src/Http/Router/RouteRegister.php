@@ -470,7 +470,7 @@ final class RouteRegister
             $requestParams[] = $this->getParamValue($param);
         }
 
-        if (wp_is_serving_rest_request() && isset($this->_restResponse)) {
+        if (RequestType::is(RequestType::API) && isset($this->_restResponse)) {
             // maybe failed at middleware,authorization or validation
 
             return Response::instance();
