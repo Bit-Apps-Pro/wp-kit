@@ -138,9 +138,9 @@ final class HttpClient
         return $this->_boundary;
     }
 
-    public function setContentType($type)
+    public function setContentType($contentType)
     {
-        $this->setHeader('Content-Type', $type);
+        $this->setHeader('Content-Type', $contentType);
 
         return $this;
     }
@@ -254,7 +254,7 @@ final class HttpClient
         return wp_remote_retrieve_response_code($this->_requestResponse);
     }
 
-    private function setDefault(array $config)
+    public function setDefault(array $config)
     {
         if (isset($config['base_uri'])) {
             $this->setBaseUri($config['base_uri']);
@@ -285,7 +285,7 @@ final class HttpClient
         }
     }
 
-    private function setJson($data)
+    public function setJson($data)
     {
         $this->setContentType('application/json');
         $this->_json = $data;
@@ -293,12 +293,12 @@ final class HttpClient
         return $this;
     }
 
-    private function getJson()
+    public function getJson()
     {
         return $this->_json;
     }
 
-    private function setFormParams($data)
+    public function setFormParams($data)
     {
         $this->setContentType('application/x-www-form-urlencoded');
         $this->_formParams = $data;
@@ -306,12 +306,12 @@ final class HttpClient
         return $this;
     }
 
-    private function getFormParams()
+    public function getFormParams()
     {
         return $this->_formParams;
     }
 
-    private function setMultipart($data)
+    public function setMultipart($data)
     {
         $this->setContentType('multipart/form-data; charset=UTF-8');
         $this->_multipart = $data;
@@ -319,12 +319,12 @@ final class HttpClient
         return $this;
     }
 
-    private function getMultipart()
+    public function getMultipart()
     {
         return $this->_multipart;
     }
 
-    private function getPreparedPayload()
+    public function getPreparedPayload()
     {
         $payload = null;
         if (!empty($this->_multipart)) {
@@ -351,7 +351,7 @@ final class HttpClient
         return $payload;
     }
 
-    private function getPreparedMultipart()
+    public function getPreparedMultipart()
     {
         $multipart = '';
         if (!empty($this->getMultipart()) && \is_array($this->getMultipart())) {
