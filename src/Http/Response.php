@@ -34,14 +34,17 @@ final class Response
     /**
      * Sets data for success response.
      *
-     * @param mixed $data Data to return on response
+     * @param mixed $data       Data to return on response
+     * @param mixed $httpStatus
      *
      * @return self
      */
-    public static function success($data)
+    public static function success($data, $httpStatus = 200)
     {
         self::$_data   = $data;
         self::$_status = self::SUCCESS;
+
+        self::$_httpStatus = $httpStatus;
 
         return self::instance();
     }
@@ -49,14 +52,17 @@ final class Response
     /**
      * Sets data for error response.
      *
-     * @param mixed $data Data to return on response
+     * @param mixed $data       Data to return on response
+     * @param mixed $httpStatus
      *
      * @return self
      */
-    public static function error($data)
+    public static function error($data, $httpStatus = 400)
     {
         self::$_data   = $data;
         self::$_status = self::ERROR;
+
+        self::$_httpStatus = $httpStatus;
 
         return self::instance();
     }
