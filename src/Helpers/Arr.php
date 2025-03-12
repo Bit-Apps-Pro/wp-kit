@@ -564,7 +564,11 @@ class Arr
             return $array = $value;
         }
 
-        $keys = explode('.', $key);
+        if (\is_array($key)) {
+            $keys = $key;
+        } else {
+            $keys = explode('.', $key);
+        }
 
         foreach ($keys as $i => $key) {
             if (\count($keys) === 1) {
