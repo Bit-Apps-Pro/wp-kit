@@ -47,7 +47,7 @@ final class HttpClient
 
     public function __call($method, $params)
     {
-        if (\in_array($method, ['post', 'get', 'put', 'delete', 'head', 'option'])) {
+        if (\in_array($method, ['post', 'get', 'put','patch', 'delete', 'head', 'option'])) {
             $this->_method = $method;
             $url           = $this->_baseUri . $params[0];
             $query         = http_build_query($this->getQueryParams());
