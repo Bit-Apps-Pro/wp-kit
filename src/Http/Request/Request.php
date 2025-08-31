@@ -33,7 +33,7 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
     /**
      * Undocumented function.
      */
-    public function __construct(RouteRegister $route = null)
+    public function __construct(?RouteRegister $route = null)
     {
         $this->route = $route;
         $this->setBody();
