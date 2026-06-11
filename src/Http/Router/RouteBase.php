@@ -137,7 +137,7 @@ final class RouteBase
      */
     public function middleware()
     {
-        $this->_middleware = (array) $this->_middleware + \func_get_args();
+        $this->_middleware = array_merge($this->_middleware, \func_get_args());
 
         return $this;
     }
