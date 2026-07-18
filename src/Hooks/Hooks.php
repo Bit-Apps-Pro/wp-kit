@@ -11,6 +11,7 @@ use RuntimeException;
  * @method static true  addAction($tag, callable $functionToAdd, $priority = 10, $acceptedArgs = 1)
  * @method static bool  removeAction($tag, callable $functionToRemove, $priority = 10)
  * @method static true  addFilter($tag, callable $functionToAdd, $priority = 10, $acceptedArgs = 1)
+ * @method static bool  removeFilter($tag, callable $functionToRemove, $priority = 10)
  * @method static mixed applyFilter($tag, $value, ...$args)
  */
 final class Hooks
