@@ -79,6 +79,21 @@ final class HooksWrapper
     }
 
     /**
+     * A wrapper for remove_filter().
+     *
+     * @param string   $tag              the filter hook to which the function to be removed is hooked
+     * @param callable $functionToRemove the callback to be removed from running when the filter is applied
+     * @param int      $priority         Optional. The exact priority used when adding
+     *                                   the original filter callback. Default 10.
+     *
+     * @return bool — Whether the function existed before it was removed
+     */
+    public function removeFilter($tag, $functionToRemove, $priority = 10)
+    {
+        return remove_filter($tag, $functionToRemove, $priority);
+    }
+
+    /**
      * A wrapper for apply_filters().
      *
      * @param string $tag     the name of the filter hook
