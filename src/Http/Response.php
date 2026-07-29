@@ -2,33 +2,46 @@
 
 namespace BitApps\WPKit\Http;
 
+use InvalidArgumentException;
+
 final class Response
 {
     const SUCCESS = 'success';
 
     const ERROR = 'error';
 
-    private static $_instance;
+    private static $_current;
 
-    private static $_message;
+    private $_message;
 
-    private static $_status;
+    private $_status;
 
-    private static $_code;
+    private $_code;
 
-    private static $_data;
+    private $_data;
 
-    private static $_httpStatus;
+    private $_httpStatus;
 
-    private static $_headers = [];
+    private $_headers = [];
 
     public static function instance()
     {
-        if (\is_null(self::$_instance)) {
-            self::$_instance = new self();
-        }
+        return self::current();
+    }
 
-        return self::$_instance;
+    public static function reset()
+    {
+        return self::$_current = new self();
+    }
+
+    /**
+     * Makes an existing response the current one so the static accessors read it back.
+     *
+     * @return self
+     */
+    public static function adopt(self $response)
+    {
+        return self::$_current = $response;
     }
 
     /**
@@ -41,12 +54,13 @@ final class Response
      */
     public static function success($data, $httpStatus = 200)
     {
-        self::$_data   = $data;
-        self::$_status = self::SUCCESS;
+        $current          = self::current();
+        $current->_data   = $data;
+        $current->_status = self::SUCCESS;
 
-        self::$_httpStatus = $httpStatus;
+        $current->_httpStatus = $httpStatus;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -59,12 +73,13 @@ final class Response
      */
     public static function error($data, $httpStatus = 400)
     {
-        self::$_data   = $data;
-        self::$_status = self::ERROR;
+        $current          = self::current();
+        $current->_data   = $data;
+        $current->_status = self::ERROR;
 
-        self::$_httpStatus = $httpStatus;
+        $current->_httpStatus = $httpStatus;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -74,7 +89,7 @@ final class Response
      */
     public static function getData()
     {
-        return self::$_data;
+        return self::current()->_data;
     }
 
     /**
@@ -84,7 +99,7 @@ final class Response
      */
     public static function getStatus()
     {
-        return self::$_status;
+        return self::current()->_status;
     }
 
     /**
@@ -96,9 +111,10 @@ final class Response
      */
     public static function message($message)
     {
-        self::$_message = $message;
+        $current           = self::current();
+        $current->_message = $message;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -108,7 +124,7 @@ final class Response
      */
     public static function getMessage()
     {
-        return self::$_message;
+        return self::current()->_message;
     }
 
     /**
@@ -120,9 +136,10 @@ final class Response
      */
     public static function code($code)
     {
-        self::$_code = $code;
+        $current        = self::current();
+        $current->_code = $code;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -132,11 +149,12 @@ final class Response
      */
     public static function getCode()
     {
-        if (!isset(self::$_code)) {
-            return strtoupper(self::$_status);
+        $current = self::current();
+        if (!isset($current->_code)) {
+            return isset($current->_status) ? strtoupper($current->_status) : null;
         }
 
-        return self::$_code;
+        return $current->_code;
     }
 
     /**
@@ -148,9 +166,10 @@ final class Response
      */
     public static function httpStatus($code)
     {
-        self::$_httpStatus = $code;
+        $current              = self::current();
+        $current->_httpStatus = $code;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -160,9 +179,10 @@ final class Response
      */
     public static function getHttpStatusCode()
     {
-        $statusCode = self::$_httpStatus;
+        $current    = self::current();
+        $statusCode = $current->_httpStatus;
         if (!$statusCode) {
-            $statusCode = self::ERROR === self::$_status ? 400 : 200;
+            $statusCode = self::ERROR === $current->_status ? 400 : 200;
         }
 
         return $statusCode;
@@ -171,15 +191,22 @@ final class Response
     /**
      * Sets http headers for response.
      *
-     * @param string $headers http headers to return on response
+     * @param array $headers http headers to return on response
      *
      * @return self
      */
     public static function headers($headers)
     {
-        self::$_headers = $headers;
+        if (!\is_array($headers)) {
+            throw new InvalidArgumentException('Response headers must be an array.');
+        }
 
-        return self::instance();
+        self::current()->_headers = [];
+        foreach ($headers as $header => $value) {
+            self::header($header, $value);
+        }
+
+        return self::current();
     }
 
     /**
@@ -192,9 +219,18 @@ final class Response
      */
     public static function header($header, $value)
     {
-        self::$_headers[$header] = $value;
+        if (!\is_string($header) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $header) !== 1) {
+            throw new InvalidArgumentException('Invalid response header name.');
+        }
 
-        return self::instance();
+        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
+            throw new InvalidArgumentException('Invalid response header value.');
+        }
+
+        $current                    = self::current();
+        $current->_headers[$header] = $value;
+
+        return $current;
     }
 
     /**
@@ -204,6 +240,15 @@ final class Response
      */
     public static function getHeaders()
     {
-        return self::$_headers;
+        return self::current()->_headers;
+    }
+
+    private static function current()
+    {
+        if (\is_null(self::$_current)) {
+            self::$_current = new self();
+        }
+
+        return self::$_current;
     }
 }

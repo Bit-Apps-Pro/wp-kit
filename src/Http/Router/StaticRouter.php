@@ -2,8 +2,7 @@
 
 namespace BitApps\WPKit\Http\Router;
 
-use BitApps\WPKit\Http\Router\Router;
-use BitApps\WPKit\Http\Router\RouteRegister;
+use BitApps\WPKit\Http\RequestType;
 
 if (!\defined('ABSPATH')) {
     exit;
@@ -13,19 +12,19 @@ class StaticRouter
 {
     private Router $router;
 
+    private string $pageName;
+
     private array $rewriteRules = [];
 
     private array $queryVars = [];
 
     private string $content;
 
-    public function __construct(
-        private string $pageName,
-        private string $activationHook,
-        private string $deactivationHook
-    ) {
-        $this->router = Router::instance('static', $this->pageName);
-        $this->registerHooks();
+    public function __construct(string $pageName, string $activationHook, string $deactivationHook, ?Router $router = null)
+    {
+        $this->pageName = trim($pageName, '/');
+        $this->router   = $router ?: Router::instance(RequestType::STATIC_PAGE, $this->pageName);
+        $this->registerHooks($activationHook, $deactivationHook);
     }
 
     public function flushOnActivate()
@@ -47,41 +46,23 @@ class StaticRouter
             return;
         }
 
-
         foreach ($this->rewriteRules as $regex => $query) {
             add_rewrite_rule($regex, $query, 'top');
         }
+
+        $this->maybeFlushRewriteRules();
     }
 
     public function addQueryVars($vars)
     {
-        if (empty($this->rewriteRules)) {
-            return $vars;
-        }
-        $this->maybeFlashRewriteRules();
-        $uniqueQueryVars = array_unique($this->queryVars);
-
-        return array_merge($vars, $uniqueQueryVars);
+        return array_merge($vars, $this->queryVars);
     }
 
     public function handleRequest()
     {
-        $requestPath = sanitize_url($_SERVER['REQUEST_URI']) ?? '';
-        $pageName = trim($this->pageName, '/');
+        $requestPath = sanitize_url((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH));
         foreach ($this->router->getRoutes() as $route) {
-            /**
-             * RouteRegister instance to check against.
-             *
-             * @var RouteRegister $route
-             */
-            $prefix = $route->getRoutePrefix();
-            $path = $pageName . '/' . $prefix;
-            $path = '/' . trim($path, '/') . '/' . trim($route->getPath(), '/');
-            if ($prefix) {
-                $path = $prefix . '/' . $path;
-            }
-            if ($this->isRouteMatched($path, $requestPath)) {
-                $this->setRouteParameters($route, $requestPath);
+            if ($this->isRouteMatched($route, $requestPath)) {
                 // this filter needs to be added here to avoid affecting other routes
                 add_filter('the_content', [$this, 'renderContent']);
 
@@ -114,35 +95,33 @@ class StaticRouter
         }
 
         $rules = get_option('rewrite_rules');
-        $ignorePatterns = ['(.?.+?)(?:/([0-9]+))?/?$', '([^/]+)(?:/([0-9]+))?/?$'];
-        $rulesToCheck = $path ? ['^' . trim($path, '/')] : array_keys($rewriteRules);
+        if (!$rules) {
+            return false;
+        }
 
-        if ($rules) {
-            $patterns = array_keys($rules);
-            foreach ($patterns as $pattern) {
-                if (!\in_array($pattern, $ignorePatterns, true) && \in_array($pattern, $rulesToCheck, true)) {
-                    return true;
-                }
+        $rulesToCheck = $path ? ['^' . trim($path, '/')] : array_keys($rewriteRules);
+        foreach ($rulesToCheck as $rule) {
+            if (isset($rules[$rule])) {
+                return true;
             }
         }
 
         return false;
     }
 
-    public function maybeFlashRewriteRules()
+    public function maybeFlushRewriteRules()
     {
-        if (empty($this->rewriteRules) || $this->isRewriteExists(rewriteRules: $this->rewriteRules)) {
-            // error_log('Rewrite rules already exist, skipping flush.');
+        if (empty($this->rewriteRules) || self::isRewriteExists('', $this->rewriteRules)) {
             return;
         }
 
         flush_rewrite_rules();
     }
 
-    private function registerHooks()
+    private function registerHooks(string $activationHook, string $deactivationHook)
     {
-        add_action($this->activationHook, [$this, 'flushOnDeactivate']);
-        add_action($this->deactivationHook, [$this, 'flushOnActivate']);
+        add_action($activationHook, [$this, 'flushOnActivate']);
+        add_action($deactivationHook, [$this, 'flushOnDeactivate']);
         add_action('init', [$this, 'registerRewriteRules']);
         add_action('query_vars', [$this, 'addQueryVars']);
         add_action('template_redirect', [$this, 'handleRequest']);
@@ -150,88 +129,39 @@ class StaticRouter
 
     private function processRoutes()
     {
-        $routes = $this->router->getRoutes();
-
-        foreach ($routes as $route) {
-            /**
-             * RouteRegister instance to process.
-             *
-             * @var RouteRegister $route
-             */
-            $path = $route->getPath();
-            $prefix = $route->getRoutePrefix();
-
-            if ($prefix) {
-                $path = $prefix . '/' . $path;
-            }
-
-            $this->makeRewriteRuleForPath($path);
+        $ruleSet = new RewriteRuleSet($this->pageName);
+        foreach ($this->router->getRoutes() as $route) {
+            $ruleSet->addPath($this->routePath($route));
         }
+
+        $this->rewriteRules = $ruleSet->rules();
+        $this->queryVars    = $ruleSet->queryVars();
     }
 
-    private function isRouteMatched($routePath, $requestPath)
+    private function routePath(RouteRegister $route): string
     {
-        // Replace route parameters with regex pattern for matching
-        $pattern = preg_replace('/\{(\w+)\}/', '([^/]+)', $routePath);
-        $pattern = '^' . $pattern . '/?$';
+        $prefix = trim((string) $route->getRoutePrefix(), '/');
+        $path   = trim((string) $route->getPath(), '/');
 
-        return preg_match('~' . $pattern . '~', $requestPath);
+        return $prefix === '' ? $path : $prefix . '/' . $path;
     }
 
-    private function setRouteParameters(RouteRegister $route, $requestPath)
+    private function isRouteMatched(RouteRegister $route, string $requestPath): bool
     {
-        $path = $route->getPath();
-        $prefix = $route->getRoutePrefix();
+        $path     = $this->pageName . '/' . $this->routePath($route);
+        $compiled = RoutePattern::compile($path);
+        $pattern  = $compiled === null ? preg_quote($path, '~') : $compiled['regex'];
 
-        if ($prefix) {
-            $path = $prefix . '/' . $path;
+        if (!preg_match('~^/' . $pattern . '/?$~', $requestPath, $matches)) {
+            return false;
         }
 
-        $cleanPath = trim($path, '/');
-
-        preg_match_all('/\{(\w+)\}/', $cleanPath, $matches);
-        $routeParams = $matches[1];
-
-        if (empty($routeParams)) {
-            return;
-        }
-
-        $regex = '~^' . trim($this->pageName, '/') . '/' . preg_replace('/\{(\w+)\}/', '([^/]+)', $cleanPath) . '~';
-        if (preg_match($regex, trim($requestPath, '/'), $matchedValues)) {
-            // Skip the full match at index 0
-            array_shift($matchedValues);
-
-            foreach ($routeParams as $i => $param) {
-                if (isset($matchedValues[$i])) {
-                    $route->setRouteParamValue($param, $matchedValues[$i]);
-                }
+        foreach ($matches as $param => $value) {
+            if (\is_string($param)) {
+                $route->setRouteParamValue($param, $value);
             }
         }
-    }
 
-    private function makeRewriteRuleForPath(string $path)
-    {
-        preg_match_all('/\{\w+\??\}\??/', $path, $regexMatched);
-        $pagename = trim($this->pageName, '/');
-        $path = $pagename . '/' . trim($path, '/') . '/';
-        $this->rewriteRules = [];
-        $this->rewriteRules["^{$pagename}/?$"] = "index.php?pagename={$pagename}";
-        $matchCount = 1;
-        $previousPath = "^{$pagename}/?$";
-        while ($param = array_shift($regexMatched[0])) {
-            $param = trim($param, '{}?');
-            $pathChunk = substr($path, 0, strpos($path, "{{$param}}"));
-            $pathChunkWithoutParam = '^' . $pathChunk . '?$';
-            $pathChunkWitParam = '^' . $pathChunk . '([^/]+)/?$';
-
-            $path = str_replace("{{$param}}", '([^/]+)', $path);
-            if (!isset($this->rewriteRules[$pathChunkWithoutParam]) && strpos($pathChunkWithoutParam, '([^/]+)')) {
-                $previousPath = trim(substr($pathChunkWithoutParam, 0, strpos($pathChunkWithoutParam, '([^/]+)') + \strlen('([^/]+)') + 1), '/') . '/?$';
-            }
-            $this->rewriteRules[$pathChunkWithoutParam] = $this->rewriteRules[$previousPath];
-            $this->rewriteRules[$pathChunkWitParam] = $this->rewriteRules[$pathChunkWithoutParam] . "&{$param}=\$matches[{$matchCount}]";
-            ++$matchCount;
-            $this->queryVars[] = $param;
-        }
+        return true;
     }
 }

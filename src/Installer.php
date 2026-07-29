@@ -112,7 +112,7 @@ final class Installer
             // Str From WP install script
             wp_die(
                 esc_html(
-                    sprintf(
+                    \sprintf(
                         // translators: 1: Current PHP version, 2: Version required by the uploaded plugin.
                         'The PHP version on your server is %1$s, however the uploaded plugin requires %2$s.',
                         PHP_VERSION,
@@ -126,7 +126,7 @@ final class Installer
         if (version_compare(get_bloginfo('version'), $this->_requirements['wp'], '<')) {
             wp_die(
                 esc_html(
-                    sprintf(
+                    \sprintf(
                         // translators: 1: Current WordPress version, 2: Version required by the uploaded plugin.
                         'Your WordPress version is %1$s, however the uploaded plugin requires %2$s.',
                         get_bloginfo('version'),

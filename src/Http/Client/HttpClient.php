@@ -35,6 +35,8 @@ final class HttpClient
 
     private $_options = [];
 
+    private $_allowUnsafeUrls = false;
+
     /**
      * Undocumented function.
      *
@@ -118,6 +120,13 @@ final class HttpClient
     public function setOptions(array $options)
     {
         $this->_options = $options;
+
+        return $this;
+    }
+
+    public function allowUnsafeUrls($allow = true)
+    {
+        $this->_allowUnsafeUrls = (bool) $allow;
 
         return $this;
     }
@@ -227,7 +236,9 @@ final class HttpClient
         ];
         $options = wp_parse_args($options, $defaultOptions);
 
-        $requestResponse = wp_remote_request($url, $options);
+        $requestResponse = $this->_allowUnsafeUrls
+            ? wp_remote_request($url, $options)
+            : wp_safe_remote_request($url, $options);
 
         $this->_requestResponse = $requestResponse;
 
@@ -282,6 +293,10 @@ final class HttpClient
 
         if (isset($config['multipart'])) {
             $this->setMultipart($config['multipart']);
+        }
+
+        if (isset($config['allow_unsafe_urls'])) {
+            $this->allowUnsafeUrls($config['allow_unsafe_urls']);
         }
     }
 

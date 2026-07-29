@@ -14,6 +14,8 @@ final class RequestType
 
     const FRONTEND = 'frontend';
 
+    const STATIC_PAGE = 'static';
+
     /**
      * Returns if request is for specific $type.
      *

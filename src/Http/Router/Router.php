@@ -2,15 +2,15 @@
 
 namespace BitApps\WPKit\Http\Router;
 
+use BitApps\WPKit\Http\RequestType;
+
 final class Router
 {
-    private $_routes;
+    private $_routes = [];
 
-    private $_registeredRoutes;
+    private $_registeredRoutes = [];
 
-    private $_middlewares;
-
-    private $_registeredMiddlewares;
+    private $_middlewareRegistry;
 
     private $_namespace;
 
@@ -20,13 +20,17 @@ final class Router
 
     private static $_instance;
 
+    // keyed by type only — two routers of the same type share one slot, last constructed wins
+    private static $_registry = [];
+
     public function __construct($type, $namespace, $version)
     {
-        $this->_routes      = [];
-        $this->_namespace   = $namespace;
-        $this->_version     = $version;
-        $this->_requestType = $type;
-        self::$_instance    = $this;
+        $this->_namespace          = $namespace;
+        $this->_version            = $version;
+        $this->_requestType        = $type;
+        $this->_middlewareRegistry = new MiddlewareRegistry();
+        self::$_instance           = $this;
+        self::$_registry[$type]    = $this;
     }
 
     public function getRequestType()
@@ -79,13 +83,28 @@ final class Router
         return $this->_registeredRoutes;
     }
 
-    public static function instance($type = 'ajax', $namespace = null, $version = null)
+    public static function instance($type = null, $namespace = null, $version = null)
     {
-        if (\is_null(self::$_instance)) {
-            self::$_instance = new self($type, $namespace, $version);
+        if ($type === null) {
+            if (\is_null(self::$_instance)) {
+                self::$_instance = new self(RequestType::AJAX, $namespace, $version);
+            }
+
+            return self::$_instance;
         }
 
-        return self::$_instance;
+        if (isset(self::$_registry[$type])) {
+            return self::$_registry[$type];
+        }
+
+        // creates, registers, AND makes the new router current — declare routes before constructing transports
+        return new self($type, $namespace, $version);
+    }
+
+    public static function reset()
+    {
+        self::$_instance = null;
+        self::$_registry = [];
     }
 
     public function registerFile($routeFile)
@@ -97,10 +116,10 @@ final class Router
 
     public function register()
     {
-        if ($this->getRequestType() === 'ajax') {
+        if ($this->getRequestType() === RequestType::AJAX) {
             $ajaxRouter = new AjaxRouter($this);
             $ajaxRouter->registerRoutes();
-        } elseif ($this->getRequestType() === 'api') {
+        } elseif ($this->getRequestType() === RequestType::API) {
             $ajaxRouter = new APIRouter($this);
             $ajaxRouter->registerRoutes();
         }
@@ -108,17 +127,11 @@ final class Router
 
     public function setMiddlewares($middlewares)
     {
-        $this->_middlewares = $middlewares;
+        $this->_middlewareRegistry->register($middlewares);
     }
 
     public function getRegisteredMiddleware($name)
     {
-        if (!isset($this->_registeredMiddlewares[$name])) {
-            $this->_registeredMiddlewares[$name] = isset($this->_middlewares[$name])
-                && class_exists($this->_middlewares[$name])
-                && method_exists($this->_middlewares[$name], 'handle') ? new $this->_middlewares[$name]() : null;
-        }
-
-        return $this->_registeredMiddlewares[$name];
+        return $this->_middlewareRegistry->resolve($name);
     }
 }
