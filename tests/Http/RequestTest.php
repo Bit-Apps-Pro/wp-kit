@@ -8,12 +8,55 @@ use WP_REST_Request;
 use WpKitTestState;
 
 /**
+ * Pins the BC contract: a consumer Request subclass may override accessors with
+ * UNTYPED signatures. If a parent accessor regains a return type, this class fails
+ * to load ("Declaration must be compatible") and the suite errors — the guard the
+ * rest of the suite misses because its other Request subclasses only override
+ * Validator hooks.
+ */
+final class ContractOverridingRequest extends Request
+{
+    public function all()
+    {
+        return ['overridden' => true];
+    }
+
+    public function has($offset)
+    {
+        return true;
+    }
+
+    public function except()
+    {
+        return [];
+    }
+
+    public function files()
+    {
+        return [];
+    }
+
+    public function getRoute()
+    {
+        return null;
+    }
+}
+
+/**
  * @internal
  *
  * @coversNothing
  */
 final class RequestTest extends TestCase
 {
+    public function testConsumerSubclassMayOverrideAccessorsWithUntypedSignatures(): void
+    {
+        $request = new ContractOverridingRequest();
+
+        assertSameValue(['overridden' => true], $request->all(), 'untyped all() override was not honored');
+        assertTest($request->has('anything'), 'untyped has() override was not honored');
+    }
+
     public function testRequestQueryBodyAndFilesRemainSeparatelyObservable(): void
     {
         $_GET                    = ['query' => 'value', 'shared' => 'query'];

@@ -9,12 +9,9 @@ use RuntimeException;
  */
 final class RouteBlockedException extends RuntimeException
 {
-    private $_response;
-
-    public function __construct($response)
+    public function __construct(private $_response)
     {
         parent::__construct('Route dispatch blocked');
-        $this->_response = $response;
     }
 
     public function getResponse()

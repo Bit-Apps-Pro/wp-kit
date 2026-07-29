@@ -6,31 +6,22 @@ use BitApps\WPKit\Http\RequestType;
 
 final class Router
 {
-    private $_routes = [];
+    private array $_routes = [];
 
-    private $_registeredRoutes = [];
+    private array $_registeredRoutes = [];
 
-    private $_middlewareRegistry;
+    private MiddlewareRegistry $_middlewareRegistry;
 
-    private $_namespace;
-
-    private $_version;
-
-    private $_requestType;
-
-    private static $_instance;
+    private static ?self $_instance = null;
 
     // keyed by type only — two routers of the same type share one slot, last constructed wins
-    private static $_registry = [];
+    private static array $_registry = [];
 
-    public function __construct($type, $namespace, $version)
+    public function __construct(private $_requestType, private $_namespace, private $_version)
     {
-        $this->_namespace          = $namespace;
-        $this->_version            = $version;
-        $this->_requestType        = $type;
-        $this->_middlewareRegistry = new MiddlewareRegistry();
-        self::$_instance           = $this;
-        self::$_registry[$type]    = $this;
+        $this->_middlewareRegistry            = new MiddlewareRegistry();
+        self::$_instance                      = $this;
+        self::$_registry[$this->_requestType] = $this;
     }
 
     public function getRequestType()
@@ -38,7 +29,7 @@ final class Router
         return $this->_requestType;
     }
 
-    public function getVersion()
+    public function getVersion(): string
     {
         return empty($this->_version) ? '' : $this->_version . '/';
     }
@@ -48,37 +39,37 @@ final class Router
         return $this->_namespace;
     }
 
-    public function getAjaxPrefix()
+    public function getAjaxPrefix(): string
     {
         return $this->getNamespace() . (empty($this->_version) ? '' : '/' . $this->_version);
     }
 
-    public function getRoutes()
+    public function getRoutes(): array
     {
         return $this->_routes;
     }
 
     public function getRoute($routeIndex)
     {
-        return isset($this->_routes[$routeIndex]) ? $this->_routes[$routeIndex] : null;
+        return $this->_routes[$routeIndex] ?? null;
     }
 
-    public function addRoute(RouteRegister $route)
+    public function addRoute(RouteRegister $route): void
     {
         $this->_routes[] = $route;
     }
 
-    public function addRegisteredRoute($name, RouteRegister $route)
+    public function addRegisteredRoute($name, RouteRegister $route): void
     {
         $this->_registeredRoutes[$name] = $route;
     }
 
     public function getRegisteredRoute($routeName)
     {
-        return isset($this->_registeredRoutes[$routeName]) ? $this->_registeredRoutes[$routeName] : null;
+        return $this->_registeredRoutes[$routeName] ?? null;
     }
 
-    public function getRegisteredRoutes()
+    public function getRegisteredRoutes(): array
     {
         return $this->_registeredRoutes;
     }
@@ -93,28 +84,24 @@ final class Router
             return self::$_instance;
         }
 
-        if (isset(self::$_registry[$type])) {
-            return self::$_registry[$type];
-        }
-
         // creates, registers, AND makes the new router current — declare routes before constructing transports
-        return new self($type, $namespace, $version);
+        return self::$_registry[$type] ?? new self($type, $namespace, $version);
     }
 
-    public static function reset()
+    public static function reset(): void
     {
         self::$_instance = null;
         self::$_registry = [];
     }
 
-    public function registerFile($routeFile)
+    public function registerFile($routeFile): void
     {
         self::$_instance = $this;
 
         include_once $routeFile;
     }
 
-    public function register()
+    public function register(): void
     {
         if ($this->getRequestType() === RequestType::AJAX) {
             $ajaxRouter = new AjaxRouter($this);
@@ -125,7 +112,7 @@ final class Router
         }
     }
 
-    public function setMiddlewares($middlewares)
+    public function setMiddlewares($middlewares): void
     {
         $this->_middlewareRegistry->register($middlewares);
     }

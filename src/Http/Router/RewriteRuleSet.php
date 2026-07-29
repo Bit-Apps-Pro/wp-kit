@@ -7,18 +7,18 @@ namespace BitApps\WPKit\Http\Router;
  */
 final class RewriteRuleSet
 {
-    private $_pageName;
+    private string $_pageName;
 
-    private $_rules = [];
+    private array $_rules = [];
 
-    private $_queryVars = [];
+    private array $_queryVars = [];
 
     public function __construct(string $pageName)
     {
         $this->_pageName = trim($pageName, '/');
     }
 
-    public function addPath(string $path)
+    public function addPath(string $path): void
     {
         if (empty($this->_rules)) {
             $this->_rules["^{$this->_pageName}/?$"] = "index.php?pagename={$this->_pageName}";
@@ -46,12 +46,12 @@ final class RewriteRuleSet
         }
     }
 
-    public function rules()
+    public function rules(): array
     {
         return $this->_rules;
     }
 
-    public function queryVars()
+    public function queryVars(): array
     {
         return array_values(array_unique($this->_queryVars));
     }

@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 final class HttpClient
 {
-    private $_headers = [];
+    private array $_headers = [];
 
     private $_body;
 
@@ -25,29 +25,29 @@ final class HttpClient
 
     private $_baseUri;
 
-    private $_boundary;
+    private ?string $_boundary = null;
 
-    private $_method;
+    private ?string $_method = null;
 
     private $_responseHeaders = [];
 
     private $_requestResponse;
 
-    private $_options = [];
+    private array $_options = [];
 
-    private $_allowUnsafeUrls = false;
+    private bool $_allowUnsafeUrls = false;
 
     /**
      * Undocumented function.
      *
      * @param array $config
      */
-    public function __construct($config = [])
+    public function __construct(array $config = [])
     {
         $this->setDefault($config);
     }
 
-    public function __call($method, $params)
+    public function __call(string $method, array $params)
     {
         if (\in_array($method, ['post', 'get', 'put','patch', 'delete', 'head', 'option'])) {
             $this->_method = $method;
@@ -64,10 +64,10 @@ final class HttpClient
             return $this->request($url, $method, $data, $headers, $options);
         }
 
-        throw new BadMethodCallException($method . ' Method not found in ' . __CLASS__);
+        throw new BadMethodCallException($method . ' Method not found in ' . self::class);
     }
 
-    public function setBaseUri($uri)
+    public function setBaseUri($uri): self
     {
         $this->_baseUri = $uri;
 
@@ -79,7 +79,7 @@ final class HttpClient
         return $this->_baseUri;
     }
 
-    public function setHeaders(array $headers)
+    public function setHeaders(array $headers): self
     {
         if (empty($this->_headers)) {
             $this->_headers = $headers;
@@ -92,7 +92,10 @@ final class HttpClient
         return $this;
     }
 
-    public function getHeaders()
+    /**
+     * @return mixed[]
+     */
+    public function getHeaders(): array
     {
         $headers = [];
         foreach ($this->_headers as $key => $value) {
@@ -104,7 +107,7 @@ final class HttpClient
 
     public function getHeader($key)
     {
-        return isset($this->_headers[$key]) ? $this->_headers[$key] : false;
+        return $this->_headers[$key] ?? false;
     }
 
     public function setHeader($key, $value)
@@ -112,42 +115,42 @@ final class HttpClient
         return $this->_headers[ucwords($key)][] = $value;
     }
 
-    public function getOptions()
+    public function getOptions(): array
     {
         return $this->_options;
     }
 
-    public function setOptions(array $options)
+    public function setOptions(array $options): self
     {
         $this->_options = $options;
 
         return $this;
     }
 
-    public function allowUnsafeUrls($allow = true)
+    public function allowUnsafeUrls($allow = true): self
     {
         $this->_allowUnsafeUrls = (bool) $allow;
 
         return $this;
     }
 
-    public function setBoundary($boundary)
+    public function setBoundary($boundary): self
     {
         $this->_boundary = '-------' . (string) $boundary;
 
         return $this;
     }
 
-    public function getBoundary()
+    public function getBoundary(): string
     {
         if (!isset($this->_boundary)) {
-            $this->_boundary = $this->setBoundary(wp_generate_password(24));
+            $this->setBoundary(wp_generate_password(24));
         }
 
         return $this->_boundary;
     }
 
-    public function setContentType($contentType)
+    public function setContentType($contentType): self
     {
         $this->setHeader('Content-Type', $contentType);
 
@@ -156,10 +159,10 @@ final class HttpClient
 
     public function getContentType($type)
     {
-        return isset($this->_headers[$type]) ? $this->_headers[$type] : '';
+        return $this->_headers[$type] ?? '';
     }
 
-    public function setParams($data)
+    public function setParams($data): self
     {
         $this->_params = $data;
 
@@ -173,7 +176,7 @@ final class HttpClient
 
     public function getParam($key)
     {
-        return isset($this->_params[$key]) ? $this->_params[$key] : false;
+        return $this->_params[$key] ?? false;
     }
 
     public function setParam($key, $value)
@@ -181,7 +184,7 @@ final class HttpClient
         return $this->_params[$key] = $value;
     }
 
-    public function setQueryParams($data)
+    public function setQueryParams($data): self
     {
         $this->_queryParams = $data;
 
@@ -195,10 +198,10 @@ final class HttpClient
 
     public function getQueryParam($key)
     {
-        return isset($this->_queryParams[$key]) ? $this->_queryParams[$key] : false;
+        return $this->_queryParams[$key] ?? false;
     }
 
-    public function setQueryParam($key, $value)
+    public function setQueryParam($key, $value): self
     {
         if (isset($this->_queryParams[$key])) {
             if (!\is_array($this->_queryParams[$key])) {
@@ -213,7 +216,7 @@ final class HttpClient
         return $this;
     }
 
-    public function setBody($body)
+    public function setBody($body): self
     {
         $this->_body = $body;
 
@@ -265,7 +268,7 @@ final class HttpClient
         return wp_remote_retrieve_response_code($this->_requestResponse);
     }
 
-    public function setDefault(array $config)
+    public function setDefault(array $config): void
     {
         if (isset($config['base_uri'])) {
             $this->setBaseUri($config['base_uri']);
@@ -300,7 +303,7 @@ final class HttpClient
         }
     }
 
-    public function setJson($data)
+    public function setJson($data): self
     {
         $this->setContentType('application/json');
         $this->_json = $data;
@@ -313,7 +316,7 @@ final class HttpClient
         return $this->_json;
     }
 
-    public function setFormParams($data)
+    public function setFormParams($data): self
     {
         $this->setContentType('application/x-www-form-urlencoded');
         $this->_formParams = $data;
@@ -326,7 +329,7 @@ final class HttpClient
         return $this->_formParams;
     }
 
-    public function setMultipart($data)
+    public function setMultipart($data): self
     {
         $this->setContentType('multipart/form-data; charset=UTF-8');
         $this->_multipart = $data;
@@ -366,7 +369,7 @@ final class HttpClient
         return $payload;
     }
 
-    public function getPreparedMultipart()
+    public function getPreparedMultipart(): string
     {
         $multipart = '';
         if (!empty($this->getMultipart()) && \is_array($this->getMultipart())) {

@@ -27,18 +27,18 @@ class StaticRouter
         $this->registerHooks($activationHook, $deactivationHook);
     }
 
-    public function flushOnActivate()
+    public function flushOnActivate(): void
     {
         $this->registerRewriteRules();
         flush_rewrite_rules();
     }
 
-    public function flushOnDeactivate()
+    public function flushOnDeactivate(): void
     {
         flush_rewrite_rules();
     }
 
-    public function registerRewriteRules()
+    public function registerRewriteRules(): void
     {
         $this->processRoutes();
 
@@ -53,12 +53,12 @@ class StaticRouter
         $this->maybeFlushRewriteRules();
     }
 
-    public function addQueryVars($vars)
+    public function addQueryVars($vars): array
     {
         return array_merge($vars, $this->queryVars);
     }
 
-    public function handleRequest()
+    public function handleRequest(): void
     {
         $requestPath = sanitize_url((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH));
         foreach ($this->router->getRoutes() as $route) {
@@ -78,7 +78,7 @@ class StaticRouter
         return $content . ($this->content ?? '');
     }
 
-    public function loadRoutesFromFile($filePath)
+    public function loadRoutesFromFile($filePath): void
     {
         $this->router->registerFile($filePath);
     }
@@ -109,7 +109,7 @@ class StaticRouter
         return false;
     }
 
-    public function maybeFlushRewriteRules()
+    public function maybeFlushRewriteRules(): void
     {
         if (empty($this->rewriteRules) || self::isRewriteExists('', $this->rewriteRules)) {
             return;
@@ -118,7 +118,7 @@ class StaticRouter
         flush_rewrite_rules();
     }
 
-    private function registerHooks(string $activationHook, string $deactivationHook)
+    private function registerHooks(string $activationHook, string $deactivationHook): void
     {
         add_action($activationHook, [$this, 'flushOnActivate']);
         add_action($deactivationHook, [$this, 'flushOnDeactivate']);
@@ -127,7 +127,7 @@ class StaticRouter
         add_action('template_redirect', [$this, 'handleRequest']);
     }
 
-    private function processRoutes()
+    private function processRoutes(): void
     {
         $ruleSet = new RewriteRuleSet($this->pageName);
         foreach ($this->router->getRoutes() as $route) {

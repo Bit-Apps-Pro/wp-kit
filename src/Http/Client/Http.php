@@ -9,17 +9,17 @@ class Http
 {
     private HttpClient $_client;
 
-    public function __call($method, $args)
+    public function __call(string $method, array $args)
     {
         return $this->forwardCall($method, $args);
     }
 
-    public static function __callStatic($method, $args)
+    public static function __callStatic(string $method, array $args)
     {
         return forward_static_call([new static(), 'forwardCall'], $method, $args);
     }
 
-    private function forwardCall($method, $args)
+    private function forwardCall(string $method, array $args)
     {
         if (!isset($this->_client)) {
             $this->_client = new HttpClient();
@@ -41,6 +41,6 @@ class Http
             return $this->_client->request($url, $method, ...$args);
         }
 
-        throw new BadMethodCallException(esc_html($method) . ' method not exists in ' . __CLASS__);
+        throw new BadMethodCallException(esc_html($method) . ' method not exists in ' . self::class);
     }
 }

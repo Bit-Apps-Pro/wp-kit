@@ -40,7 +40,7 @@ final class JSON
      *               and NULL respectively. NULL is returned if the json cannot be decoded
      *               or if the encoded data is deeper than the recursion limit.
      */
-    public static function decode($json, $associative = false, $depth = 512, $flags = 0)
+    public static function decode($json, $associative = false, $depth = 512, $flags = 0): mixed
     {
         return json_decode($json, $associative, $depth, $flags);
     }

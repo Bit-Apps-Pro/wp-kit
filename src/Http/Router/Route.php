@@ -49,7 +49,7 @@ final class Route
      *
      * @return RouteBase
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters)
     {
         return \call_user_func_array([new RouteBase(), $method], $parameters);
     }
@@ -62,7 +62,7 @@ final class Route
      *
      * @return RouteBase
      */
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters)
     {
         return \call_user_func_array([new RouteBase(), $method], $parameters);
     }

@@ -7,14 +7,14 @@ namespace BitApps\WPKit\Http\Detection;
  */
 final class ClientIpResolver
 {
-    private static $trustedProxies = [];
+    private static array $trustedProxies = [];
 
     /**
      * Set proxy addresses or CIDR ranges that may supply X-Forwarded-For.
      *
      * @param array $proxies
      */
-    public static function setTrustedProxies(array $proxies)
+    public static function setTrustedProxies(array $proxies): void
     {
         self::$trustedProxies = $proxies;
     }
@@ -24,7 +24,7 @@ final class ClientIpResolver
      *
      * @return string IP address of current visitor
      */
-    public static function checkIP()
+    public static function checkIP(): string|false
     {
         $remoteAddress = self::normalizeIP($_SERVER['REMOTE_ADDR'] ?? '');
         if ($remoteAddress === false || !self::isTrustedProxy($remoteAddress)) {
@@ -49,7 +49,7 @@ final class ClientIpResolver
         return $remoteAddress;
     }
 
-    private static function normalizeIP($ip)
+    private static function normalizeIP($ip): string|false
     {
         $ip = trim((string) $ip, " \t\n\r\0\x0B\"");
 
@@ -62,7 +62,7 @@ final class ClientIpResolver
         return filter_var($ip, FILTER_VALIDATE_IP);
     }
 
-    private static function isTrustedProxy($ip)
+    private static function isTrustedProxy(string $ip): bool
     {
         foreach (self::$trustedProxies as $trustedProxy) {
             if (self::isIpInRange($ip, $trustedProxy)) {
@@ -73,10 +73,10 @@ final class ClientIpResolver
         return false;
     }
 
-    private static function isIpInRange($ip, $range)
+    private static function isIpInRange(string $ip, $range)
     {
         $range = trim((string) $range);
-        if (strpos($range, '/') === false) {
+        if (!str_contains($range, '/')) {
             return $ip === self::normalizeIP($range);
         }
 

@@ -41,6 +41,7 @@ return $config
         'encoding'                                      => true,
         'ereg_to_preg'                                  => true,
         'explicit_indirect_variable'                    => true,
+        'fully_qualified_strict_types'                  => true,
         'explicit_string_variable'                      => true,
         'function_declaration'                          => true,
         'function_to_constant'                          => true,

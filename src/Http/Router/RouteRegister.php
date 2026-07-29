@@ -17,19 +17,17 @@ final class RouteRegister
 {
     private $_name;
 
-    private $_methods = [];
+    private array $_methods = [];
 
     private $_action;
 
     private $_path;
 
-    private $_routeBase;
-
     private $_routeParams = [];
 
     private $_routeParamValues = [];
 
-    private $_middleware = [];
+    private array $_middleware = [];
 
     /**
      * Instance of rest request.
@@ -45,20 +43,19 @@ final class RouteRegister
      */
     private $_request;
 
-    private $_response = [];
+    private array $_response = [];
 
-    private $_bufferLevel;
+    private ?int $_bufferLevel = null;
 
     private $_compiled;
 
-    private $_compiledDone = false;
+    private bool $_compiledDone = false;
 
-    public function __construct(RouteBase $routeBase)
+    public function __construct(private RouteBase $_routeBase)
     {
-        $this->_routeBase = $routeBase;
     }
 
-    public function match($methods, $path, $action)
+    public function match($methods, $path, $action): self
     {
         if (\is_string($methods)) {
             $methods = explode(',', $methods);
@@ -71,22 +68,22 @@ final class RouteRegister
         return $this;
     }
 
-    public function get($path, $action)
+    public function get($path, $action): RouteRegister
     {
         return $this->register('GET', $path, $action);
     }
 
-    public function post($path, $action)
+    public function post($path, $action): RouteRegister
     {
         return $this->register('POST', $path, $action);
     }
 
-    public function getMethods()
+    public function getMethods(): array
     {
         return $this->_methods;
     }
 
-    public function action($action)
+    public function action($action): self
     {
         $this->_action = $action;
 
@@ -98,7 +95,7 @@ final class RouteRegister
         return $this->_action;
     }
 
-    public function path($path)
+    public function path($path): self
     {
         $this->_path         = $path;
         $this->_compiledDone = false;
@@ -111,7 +108,7 @@ final class RouteRegister
         return $this->_path;
     }
 
-    public function name($name)
+    public function name($name): self
     {
         $this->_name = $name;
 
@@ -142,24 +139,24 @@ final class RouteRegister
         return $this->makeRegex();
     }
 
-    public function hasRegex()
+    public function hasRegex(): bool
     {
         return $this->compiledPattern() !== null;
     }
 
-    public function getMiddleware()
+    public function getMiddleware(): array
     {
         return array_merge($this->_routeBase->getMiddleware(), $this->_middleware);
     }
 
-    public function middleware()
+    public function middleware(): self
     {
         $this->_middleware = array_merge($this->_middleware, \func_get_args());
 
         return $this;
     }
 
-    public function handleMiddleware()
+    public function handleMiddleware(): bool
     {
         try {
             $this->runMiddlewares();
@@ -191,7 +188,7 @@ final class RouteRegister
         return $this->_routeParams;
     }
 
-    public function setRouteParamValue($name, $value)
+    public function setRouteParamValue($name, $value): void
     {
         $this->_routeParamValues[$name] = $value;
     }
@@ -325,7 +322,7 @@ final class RouteRegister
         return $value;
     }
 
-    private function runMiddlewares()
+    private function runMiddlewares(): void
     {
         if (empty($middlewares = $this->getMiddleware())) {
             return;
@@ -342,7 +339,7 @@ final class RouteRegister
 
             try {
                 $middlewareObj = $router->getRegisteredMiddleware($middleware);
-            } catch (MiddlewareConfigurationException $exception) {
+            } catch (MiddlewareConfigurationException) {
                 throw new RouteBlockedException(Response::error([], 500)->code('MIDDLEWARE_CONFIGURATION')->message('Route middleware is not configured'));
             }
 
@@ -353,7 +350,7 @@ final class RouteRegister
         }
     }
 
-    private function setRestRequest(WP_REST_Request $request)
+    private function setRestRequest(WP_REST_Request $request): void
     {
         $this->_restRequest = $request;
     }
@@ -390,7 +387,7 @@ final class RouteRegister
         return $this->_request;
     }
 
-    private function authorize()
+    private function authorize(): void
     {
         if (method_exists($this->_request, 'authorize') && !$this->_request->authorize()) {
             $message = 'You are not authorized to access this endpoint';
@@ -406,7 +403,7 @@ final class RouteRegister
         }
     }
 
-    private function validate()
+    private function validate(): void
     {
         if (method_exists($this->_request, 'rules')) {
             $messages   = [];
@@ -433,7 +430,7 @@ final class RouteRegister
         }
     }
 
-    private function register($method, $path, $action)
+    private function register($method, $path, $action): self
     {
         $this->_methods[] = strtoupper($method);
         $this->path($path);
@@ -467,12 +464,12 @@ final class RouteRegister
         return $this->_compiled;
     }
 
-    private function setRouteParam($name, $attribute)
+    private function setRouteParam($name, $attribute): void
     {
         $this->_routeParams[$name] = $attribute;
     }
 
-    private function handleAction()
+    private function handleAction(): void
     {
         $action = $this->getAction();
         if (\is_array($action) && method_exists($action[0], $action[1])) {
@@ -489,7 +486,7 @@ final class RouteRegister
     /**
      * @param Closure|string $method
      */
-    private function invokeAsReflectionFunction($method)
+    private function invokeAsReflectionFunction(callable $method): mixed
     {
         $reflectionFunction = new ReflectionFunction($method);
         $params             = $this->processParameters($reflectionFunction->getParameters());
@@ -497,7 +494,7 @@ final class RouteRegister
         return $reflectionFunction->invoke(...$params);
     }
 
-    private function processParameters($reflectionParams, $params = [])
+    private function processParameters($reflectionParams, array $params = []): array
     {
         $requestParams = [];
         foreach ($reflectionParams as $param) {
@@ -507,7 +504,7 @@ final class RouteRegister
         return array_merge($requestParams, $params);
     }
 
-    private function invokeAsReflection($class, $method, $params = [])
+    private function invokeAsReflection($class, $method, array $params = []): mixed
     {
         $reflectionMethod = new ReflectionMethod($class, $method);
         $reflectionParams = $reflectionMethod->getParameters();
@@ -526,12 +523,12 @@ final class RouteRegister
         return $reflectionMethod->invoke($reflectionMethod->isStatic() ? null : new $class(), ...$params);
     }
 
-    private function block($response)
+    private function block($response): void
     {
         throw new RouteBlockedException($response);
     }
 
-    private function recordBlock(RouteBlockedException $exception)
+    private function recordBlock(RouteBlockedException $exception): void
     {
         $this->setResponse($exception->getResponse());
     }
@@ -539,7 +536,7 @@ final class RouteRegister
     /**
      * Captures stray output from the buffer handleRequest() opened; never touches buffers owned by others.
      */
-    private function collectBufferedOutput()
+    private function collectBufferedOutput(): string|false
     {
         if ($this->_bufferLevel === null || ob_get_level() <= $this->_bufferLevel) {
             return '';
@@ -550,7 +547,7 @@ final class RouteRegister
         return ob_get_clean();
     }
 
-    private function setResponse($response)
+    private function setResponse($response): void
     {
         $this->_response = ResponseEnvelope::build($response, $this->collectBufferedOutput());
     }
@@ -560,18 +557,13 @@ final class RouteRegister
         return $this->resolveEmitter()->emit($this->_response);
     }
 
-    private function resolveEmitter()
+    private function resolveEmitter(): Emitter\ResponseEmitter
     {
-        switch ($this->getRouterType()) {
-            case RequestType::API:
-                return new Emitter\ApiResponseEmitter();
-
-            case RequestType::AJAX:
-                return new Emitter\AjaxResponseEmitter();
-
-            default:
-                // static/web plus any custom type: hand the raw action output back to the caller
-                return new Emitter\StaticResponseEmitter();
-        }
+        return match ($this->getRouterType()) {
+            RequestType::API  => new Emitter\ApiResponseEmitter(),
+            RequestType::AJAX => new Emitter\AjaxResponseEmitter(),
+            // static/web plus any custom type: hand the raw action output back to the caller
+            default => new Emitter\StaticResponseEmitter(),
+        };
     }
 }

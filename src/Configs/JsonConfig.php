@@ -6,7 +6,7 @@ final class JsonConfig
 {
     protected static $decodeAsArray = true;
 
-    public static function setDecodeAsArray($value)
+    public static function setDecodeAsArray($value): void
     {
         static::$decodeAsArray = $value;
     }

@@ -15,7 +15,7 @@ final class ResponseEnvelope
      *
      * @return array ['data' => array, 'http_status' => int, 'headers' => array]
      */
-    public static function build($result, $bufferedOutput = '')
+    public static function build($result, $bufferedOutput = ''): array
     {
         $response = self::normalize($result);
 

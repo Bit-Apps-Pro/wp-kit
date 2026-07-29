@@ -11,7 +11,8 @@
     "exclude": [
       ".gitattributes",
       ".gitignore",
-      "lefthook.yml",
+      "captainhook.json",
+      "rector.php",
       ".php-cs-fixer.php",
       "composer.lock",
       ".vscode",
@@ -21,6 +22,7 @@
     ]
   },
   "require": {
+    "php": ">=8.0",
     "bitapps/wp-validator": "^1.0"
   },
   "require-dev": {
@@ -28,7 +30,10 @@
     "sirbrillig/phpcs-variable-analysis": "*",
     "dealerdirect/phpcodesniffer-composer-installer": "^0.7",
     "phpcompatibility/phpcompatibility-wp": "*",
-    "phpunit/phpunit": "^13.0"
+    "phpunit/phpunit": "^13.0",
+    "rector/rector": "^2.5",
+    "captainhook/captainhook": "^5.29",
+    "captainhook/hook-installer": "^1.0"
   },
   "autoload": {
     "psr-4": {
@@ -42,7 +47,9 @@
   },
   "scripts": {
     "lint": "./vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php",
-    "compat": "./vendor/bin/phpcs -p ./src --standard=PHPCompatibilityWP --runtime-set testVersion 7.4-",
+    "compat": "./vendor/bin/phpcs -p ./src --standard=PHPCompatibilityWP --runtime-set testVersion 8.0-",
+    "refactor": "./vendor/bin/rector process",
+    "rector": "./vendor/bin/rector process --dry-run",
     "test": "phpunit --configuration phpunit.xml",
     "coverage": "phpdbg -qrr tests/coverage.php"
   },
@@ -53,7 +60,8 @@
   },
   "config": {
     "allow-plugins": {
-      "dealerdirect/phpcodesniffer-composer-installer": true
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "captainhook/hook-installer": true
     }
   },
   "minimum-stability": "stable",

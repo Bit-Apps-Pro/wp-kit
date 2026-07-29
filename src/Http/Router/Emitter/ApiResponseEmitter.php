@@ -6,7 +6,7 @@ use WP_REST_Response;
 
 final class ApiResponseEmitter implements ResponseEmitter
 {
-    public function emit(array $response)
+    public function emit(array $response): WP_REST_Response
     {
         $restResponse = new WP_REST_Response();
         $restResponse->set_data($response['data']);

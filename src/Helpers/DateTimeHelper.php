@@ -15,7 +15,7 @@ final class DateTimeHelper
 
     private $_currentTime;
 
-    private $_currentFormat;
+    private string $_currentFormat;
 
     public function __construct()
     {
@@ -26,7 +26,7 @@ final class DateTimeHelper
         $this->_currentFormat = 'Y-m-d H:i:s';
     }
 
-    public function getDate($date = null, $currentFormat = null, $currentTZ = null, $expectedFormat = null, $expectedTZ = null)
+    public function getDate($date = null, $currentFormat = null, $currentTZ = null, $expectedFormat = null, $expectedTZ = null): string|false
     {
         if (\is_null($date)) {
             $date          = $this->_currentTime;
@@ -34,15 +34,15 @@ final class DateTimeHelper
             $currentTZ     = $this->_timezone;
         }
 
-        $currentFormat  = \is_null($currentFormat) ? $this->_currentFormat : $currentFormat;
-        $currentTZ      = \is_null($currentTZ) ? $this->_timezone : $currentTZ;
-        $expectedFormat = \is_null($expectedFormat) ? $this->_dateFormat : $expectedFormat;
-        $expectedTZ     = \is_null($expectedTZ) ? $this->_timezone : $expectedTZ;
+        $currentFormat  ??= $this->_currentFormat;
+        $currentTZ      ??= $this->_timezone;
+        $expectedFormat ??= $this->_dateFormat;
+        $expectedTZ     ??= $this->_timezone;
 
         return $this->getFormated($date, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ);
     }
 
-    public function getTime($date = null, $currentFormat = null, $currentTZ = null, $expectedFormat = null, $expectedTZ = null)
+    public function getTime($date = null, $currentFormat = null, $currentTZ = null, $expectedFormat = null, $expectedTZ = null): string|false
     {
         if (\is_null($date)) {
             $date          = $this->_currentTime;
@@ -50,15 +50,15 @@ final class DateTimeHelper
             $currentTZ     = $this->_timezone;
         }
 
-        $currentFormat  = \is_null($currentFormat) ? $this->_currentFormat : $currentFormat;
-        $currentTZ      = \is_null($currentTZ) ? $this->_timezone : $currentTZ;
-        $expectedFormat = \is_null($expectedFormat) ? $this->_timeFormat : $expectedFormat;
-        $expectedTZ     = \is_null($expectedTZ) ? $this->_timezone : $expectedTZ;
+        $currentFormat  ??= $this->_currentFormat;
+        $currentTZ      ??= $this->_timezone;
+        $expectedFormat ??= $this->_timeFormat;
+        $expectedTZ     ??= $this->_timezone;
 
         return $this->getFormated($date, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ);
     }
 
-    public function getDay($nameType, $date = null, $currentFormat = null, $currentTZ = null, $expectedTZ = null)
+    public function getDay($nameType, $date = null, $currentFormat = null, $currentTZ = null, $expectedTZ = null): string|false
     {
         if (\is_null($date)) {
             $date          = $this->_currentTime;
@@ -66,41 +66,22 @@ final class DateTimeHelper
             $currentTZ     = $this->_timezone;
         }
 
-        $currentFormat = \is_null($currentFormat) ? $this->_currentFormat : $currentFormat;
-        $currentTZ     = \is_null($currentTZ) ? $this->_timezone : $currentTZ;
-        $expectedTZ    = \is_null($expectedTZ) ? $this->_timezone : $expectedTZ;
+        $currentFormat ??= $this->_currentFormat;
+        $currentTZ     ??= $this->_timezone;
+        $expectedTZ    ??= $this->_timezone;
 
-        switch ($nameType) {
-            case 'numeric-with-leading':
-                $expectedFormat = 'd';
-
-                break;
-
-            case 'numeric-without-leading':
-                $expectedFormat = 'j';
-
-                break;
-
-            case 'short-name':
-                $expectedFormat = 'D';
-
-                break;
-
-            case 'full-name':
-                $expectedFormat = 'l';
-
-                break;
-
-            default:
-                $expectedFormat = 'd';
-
-                break;
-        }
+        $expectedFormat = match ($nameType) {
+            'numeric-with-leading'    => 'd',
+            'numeric-without-leading' => 'j',
+            'short-name'              => 'D',
+            'full-name'               => 'l',
+            default                   => 'd',
+        };
 
         return $this->getFormated($date, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ);
     }
 
-    public function getMonth($nameType, $date = null, $currentFormat = null, $currentTZ = null, $expectedTZ = null)
+    public function getMonth($nameType, $date = null, $currentFormat = null, $currentTZ = null, $expectedTZ = null): string|false
     {
         if (\is_null($date)) {
             $date          = $this->_currentTime;
@@ -108,41 +89,22 @@ final class DateTimeHelper
             $currentTZ     = $this->_timezone;
         }
 
-        $currentFormat = \is_null($currentFormat) ? $this->_currentFormat : $currentFormat;
-        $currentTZ     = \is_null($currentTZ) ? $this->_timezone : $currentTZ;
-        $expectedTZ    = \is_null($expectedTZ) ? $this->_timezone : $expectedTZ;
+        $currentFormat ??= $this->_currentFormat;
+        $currentTZ     ??= $this->_timezone;
+        $expectedTZ    ??= $this->_timezone;
 
-        switch ($nameType) {
-            case 'numeric-with-leading':
-                $expectedFormat = 'm';
-
-                break;
-
-            case 'numeric-without-leading':
-                $expectedFormat = 'n';
-
-                break;
-
-            case 'short-name':
-                $expectedFormat = 'M';
-
-                break;
-
-            case 'full-name':
-                $expectedFormat = 'F';
-
-                break;
-
-            default:
-                $expectedFormat = 'd';
-
-                break;
-        }
+        $expectedFormat = match ($nameType) {
+            'numeric-with-leading'    => 'm',
+            'numeric-without-leading' => 'n',
+            'short-name'              => 'M',
+            'full-name'               => 'F',
+            default                   => 'd',
+        };
 
         return $this->getFormated($date, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ);
     }
 
-    public function getFormated($dateString, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ)
+    public function getFormated($dateString, $currentFormat, $currentTZ, $expectedFormat, $expectedTZ): string|false
     {
         if ($currentFormat === false) {
             $dateObject = new DateTime($dateString, $currentTZ);
@@ -167,17 +129,17 @@ final class DateTimeHelper
 
         switch ($type) {
             case 'date':
-                $format = \is_null($format) ? $this->_dateFormat : $format;
+                $format ??= $this->_dateFormat;
 
                 break;
 
             case 'time':
-                $format = \is_null($format) ? $this->_timeFormat : $format;
+                $format ??= $this->_timeFormat;
 
                 break;
 
             case 'timestamp':
-                $format = \is_null($format) ? $this->_currentFormat : $format;
+                $format ??= $this->_currentFormat;
 
                 break;
 
@@ -185,79 +147,79 @@ final class DateTimeHelper
                 break;
         }
 
-        if (strpos($format, 'd') !== false) {
+        if (str_contains($format, 'd')) {
             $format = str_replace('d', 'dd', $format);
         }
 
-        if (strpos($format, 'j') !== false) {
+        if (str_contains($format, 'j')) {
             $format = str_replace('j', 'd', $format);
         }
 
-        if (strpos($format, 'D') !== false) {
+        if (str_contains($format, 'D')) {
             $format = str_replace('D', 'eee', $format);
         }
 
-        if (strpos($format, 'I') !== false) {
+        if (str_contains($format, 'I')) {
             $format = str_replace('I', 'eeee', $format);
         }
 
-        if (strpos($format, 'S') !== false) {
+        if (str_contains($format, 'S')) {
             $format = str_replace('S', 'F', $format);
         }
 
-        if (strpos($format, 'M') !== false) {
+        if (str_contains($format, 'M')) {
             $format = str_replace('M', 'MMM', $format);
         }
 
-        if (strpos($format, 'F') !== false) {
+        if (str_contains($format, 'F')) {
             $format = str_replace('F', 'MMMM', $format);
         }
 
-        if (strpos($format, 'm') !== false) {
+        if (str_contains($format, 'm')) {
             $format = str_replace('m', 'MM', $format);
         }
 
-        if (strpos($format, 'n') !== false) {
+        if (str_contains($format, 'n')) {
             $format = str_replace('n', 'M', $format);
         }
 
-        if (strpos($format, 'y') !== false) {
+        if (str_contains($format, 'y')) {
             $format = str_replace('y', 'yy', $format);
         }
 
-        if (strpos($format, 'Y') !== false) {
+        if (str_contains($format, 'Y')) {
             $format = str_replace('Y', 'yyyy', $format);
         }
 
-        if (strpos($format, 'a') !== false) {
+        if (str_contains($format, 'a')) {
             $format = str_replace('a', 'aaaa', $format);
         }
 
-        if (strpos($format, 'A') !== false) {
+        if (str_contains($format, 'A')) {
             $format = str_replace('A', 'aaaa', $format);
         }
 
-        if (strpos($format, 'g') !== false) {
+        if (str_contains($format, 'g')) {
             $format = str_replace('g', 'h', $format);
         }
 
-        if (strpos($format, 'G') !== false) {
+        if (str_contains($format, 'G')) {
             $format = str_replace('G', 'H', $format);
         }
 
-        if (strpos($format, 'h') !== false) {
+        if (str_contains($format, 'h')) {
             $format = str_replace('h', 'hh', $format);
         }
 
-        if (strpos($format, 'H') !== false) {
+        if (str_contains($format, 'H')) {
             $format = str_replace('H', 'HH', $format);
         }
 
-        if (strpos($format, 'i') !== false) {
+        if (str_contains($format, 'i')) {
             $format = str_replace('i', 'mm', $format);
         }
 
-        if (strpos($format, 's') !== false) {
+        if (str_contains($format, 's')) {
             $format = str_replace('s', 'ss', $format);
         }
 
@@ -270,17 +232,17 @@ final class DateTimeHelper
 
         switch ($type) {
             case 'date':
-                $format = \is_null($format) ? $this->_dateFormat : $format;
+                $format ??= $this->_dateFormat;
 
                 break;
 
             case 'time':
-                $format = \is_null($format) ? $this->_timeFormat : $format;
+                $format ??= $this->_timeFormat;
 
                 break;
 
             case 'timestamp':
-                $format = \is_null($format) ? $this->_currentFormat : $format;
+                $format ??= $this->_currentFormat;
 
                 break;
 
@@ -288,25 +250,25 @@ final class DateTimeHelper
                 break;
         }
 
-        if (strpos($format, 'd') !== false) {
+        if (str_contains($format, 'd')) {
             $format = str_replace('dd', 'd', $format);
         }
 
-        if (strpos($format, 'E') !== false) {
+        if (str_contains($format, 'E')) {
             $format = str_replace('E', 'D', $format);
         }
 
-        if (strpos($format, 'MMMM') !== false) {
+        if (str_contains($format, 'MMMM')) {
             $format = str_replace('MMMM', 'F', $format);
-        } elseif (strpos($format, 'MMM') !== false) {
+        } elseif (str_contains($format, 'MMM')) {
             $format = str_replace('MMM', 'M', $format);
-        } elseif (strpos($format, 'MM') !== false) {
+        } elseif (str_contains($format, 'MM')) {
             $format = str_replace('MM', 'm', $format);
         }
 
-        if (strpos($format, 'yyyy') !== false) {
+        if (str_contains($format, 'yyyy')) {
             $format = str_replace('yyyy', 'Y', $format);
-        } elseif (strpos($format, 'yy') !== false) {
+        } elseif (str_contains($format, 'yy')) {
             $format = str_replace('yy', 'y', $format);
         }
 
@@ -345,7 +307,7 @@ final class DateTimeHelper
         return new DateTimeZone(self::wp_timezone_string());
     }
 
-    public function getCurrentDateTime()
+    public function getCurrentDateTime(): string
     {
         $dateTime = new DateTime('now', self::wp_timezone());
 

@@ -16,10 +16,6 @@ use BitApps\WPKit\Migration\MigrationHelper;
  */
 final class Installer
 {
-    private $_requirements;
-
-    private $_hooks;
-
     private $_migration;
 
     private static $_drop;
@@ -27,19 +23,17 @@ final class Installer
     /**
      * Sets necessary elements
      *
-     * @param array $requirements
-     * @param array $hooks
+     * @param array $_requirements
+     * @param array $_hooks
      * @param array $migration
      */
-    public function __construct($requirements, $hooks, $migration)
+    public function __construct(private $_requirements, private $_hooks, array $migration)
     {
-        $this->_requirements = $requirements;
-        $this->_hooks        = $hooks;
-        $this->_migration    = $migration['migration'];
-        self::$_drop         = $migration['drop'];
+        $this->_migration = $migration['migration'];
+        self::$_drop      = $migration['drop'];
     }
 
-    public function register()
+    public function register(): void
     {
         if (isset($this->_hooks['activate'])) {
             Hooks::addAction($this->_hooks['activate'], [$this, 'activate']);
@@ -51,7 +45,7 @@ final class Installer
         }
     }
 
-    public function activate($isNetworkActivation)
+    public function activate($isNetworkActivation): void
     {
         $this->checkRequirements();
         if (
@@ -64,14 +58,14 @@ final class Installer
         }
     }
 
-    public function activateOnSingleSite()
+    public function activateOnSingleSite(): void
     {
         if (version_compare($this->_requirements['oldVersion'], $this->_requirements['version'], '<')) {
             MigrationHelper::migrate($this->_migration);
         }
     }
 
-    public function activateOnMultiSite()
+    public function activateOnMultiSite(): void
     {
         $sites = get_sites((['fields' => 'ids', 'network_id' => get_current_network_id()]));
         foreach ($sites as $site) {
@@ -81,7 +75,7 @@ final class Installer
         }
     }
 
-    public static function uninstall()
+    public static function uninstall(): void
     {
         if (is_multisite()) {
             self::uninstallFromAllSite();
@@ -90,12 +84,12 @@ final class Installer
         }
     }
 
-    public static function uninstallFromSingleSite()
+    public static function uninstallFromSingleSite(): void
     {
         MigrationHelper::drop(self::$_drop);
     }
 
-    public static function uninstallFromAllSite()
+    public static function uninstallFromAllSite(): void
     {
         $sites = get_sites((['fields' => 'ids', 'network_id' => get_current_network_id()]));
 
@@ -106,7 +100,7 @@ final class Installer
         }
     }
 
-    public function checkRequirements()
+    public function checkRequirements(): void
     {
         if (version_compare(PHP_VERSION, $this->_requirements['php'], '<')) {
             // Str From WP install script

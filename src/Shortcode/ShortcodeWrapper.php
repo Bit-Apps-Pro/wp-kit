@@ -16,9 +16,9 @@ final class ShortcodeWrapper
      *
      * @return string Content with shortcodes filtered out.
      */
-    public function doShortcode($content, $ignoreHtml = false)
+    public function doShortcode($content, $ignoreHtml = false): string
     {
-        do_shortcode($content, $ignoreHtml);
+        return do_shortcode($content, $ignoreHtml);
     }
 
     /**
@@ -33,7 +33,7 @@ final class ShortcodeWrapper
      *
      * @return void
      */
-    public function addShortcode($tag, $callback)
+    public function addShortcode($tag, $callback): void
     {
         add_shortcode($tag, $callback);
     }
@@ -45,7 +45,7 @@ final class ShortcodeWrapper
      *
      * @return void
      */
-    public function removeShortcode($tag)
+    public function removeShortcode($tag): void
     {
         remove_shortcode($tag);
     }

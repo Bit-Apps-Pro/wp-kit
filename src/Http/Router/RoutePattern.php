@@ -33,12 +33,12 @@ final class RoutePattern
                 throw new InvalidArgumentException("Duplicate route parameter [{$name}] in path [{$path}].");
             }
 
-            $required      = strpos($placeholder, '?') === false;
+            $required      = !str_contains($placeholder, '?');
             $params[$name] = ['required' => $required];
             $literal       = substr($path, $cursor, $offset - $cursor);
             $cursor        = $offset + \strlen($placeholder);
 
-            if (!$required && substr($literal, -1) === '/') {
+            if (!$required && str_ends_with($literal, '/')) {
                 // fold the separator into the optional group so "entries" matches "entries/{slug?}"
                 $regex .= self::quoteLiteral(substr($literal, 0, -1)) . "(?:\\/(?P<{$name}>[^\\/]+))?";
 
@@ -51,7 +51,7 @@ final class RoutePattern
         return ['regex' => $regex . self::quoteLiteral(substr($path, $cursor)), 'params' => $params];
     }
 
-    private static function quoteLiteral($literal)
+    private static function quoteLiteral(string $literal): string
     {
         return str_replace('/', '\/', preg_quote($literal, '~'));
     }

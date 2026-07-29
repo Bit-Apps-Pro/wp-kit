@@ -10,11 +10,11 @@ final class Response
 
     const ERROR = 'error';
 
-    private static $_current;
+    private static ?Response $_current = null;
 
     private $_message;
 
-    private $_status;
+    private ?string $_status = null;
 
     private $_code;
 
@@ -22,14 +22,14 @@ final class Response
 
     private $_httpStatus;
 
-    private $_headers = [];
+    private array $_headers = [];
 
-    public static function instance()
+    public static function instance(): Response
     {
         return self::current();
     }
 
-    public static function reset()
+    public static function reset(): self
     {
         return self::$_current = new self();
     }
@@ -39,7 +39,7 @@ final class Response
      *
      * @return self
      */
-    public static function adopt(self $response)
+    public static function adopt(self $response): self
     {
         return self::$_current = $response;
     }
@@ -52,7 +52,7 @@ final class Response
      *
      * @return self
      */
-    public static function success($data, $httpStatus = 200)
+    public static function success($data, $httpStatus = 200): self
     {
         $current          = self::current();
         $current->_data   = $data;
@@ -71,7 +71,7 @@ final class Response
      *
      * @return self
      */
-    public static function error($data, $httpStatus = 400)
+    public static function error($data, $httpStatus = 400): self
     {
         $current          = self::current();
         $current->_data   = $data;
@@ -97,7 +97,7 @@ final class Response
      *
      * @return string $_status
      */
-    public static function getStatus()
+    public static function getStatus(): ?string
     {
         return self::current()->_status;
     }
@@ -109,7 +109,7 @@ final class Response
      *
      * @return self
      */
-    public static function message($message)
+    public static function message($message): self
     {
         $current           = self::current();
         $current->_message = $message;
@@ -134,7 +134,7 @@ final class Response
      *
      * @return self
      */
-    public static function code($code)
+    public static function code($code): self
     {
         $current        = self::current();
         $current->_code = $code;
@@ -164,7 +164,7 @@ final class Response
      *
      * @return self
      */
-    public static function httpStatus($code)
+    public static function httpStatus($code): self
     {
         $current              = self::current();
         $current->_httpStatus = $code;
@@ -195,7 +195,7 @@ final class Response
      *
      * @return self
      */
-    public static function headers($headers)
+    public static function headers($headers): Response
     {
         if (!\is_array($headers)) {
             throw new InvalidArgumentException('Response headers must be an array.');
@@ -217,7 +217,7 @@ final class Response
      *
      * @return self
      */
-    public static function header($header, $value)
+    public static function header($header, $value): self
     {
         if (!\is_string($header) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $header) !== 1) {
             throw new InvalidArgumentException('Invalid response header name.');
@@ -238,12 +238,12 @@ final class Response
      *
      * @return array $_headers
      */
-    public static function getHeaders()
+    public static function getHeaders(): array
     {
         return self::current()->_headers;
     }
 
-    private static function current()
+    private static function current(): Response
     {
         if (\is_null(self::$_current)) {
             self::$_current = new self();

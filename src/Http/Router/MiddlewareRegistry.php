@@ -9,9 +9,9 @@ final class MiddlewareRegistry
 {
     private $_middlewares = [];
 
-    private $_resolved = [];
+    private array $_resolved = [];
 
-    public function register($middlewares)
+    public function register($middlewares): void
     {
         $this->_middlewares = $middlewares;
         $this->_resolved    = [];

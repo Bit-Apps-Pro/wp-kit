@@ -10,7 +10,7 @@ final class UserAgent
     /**
      * Check device info.
      */
-    public static function checkDevice()
+    public static function checkDevice(): string
     {
         return isset(
             $_SERVER['HTTP_USER_AGENT']
@@ -24,7 +24,7 @@ final class UserAgent
      *
      * @see https://stackoverflow.com/questions/18070154/get-operating-system-info
      */
-    private static function getBrowserName($userAgent)
+    private static function getBrowserName($userAgent): string
     {
         // Make case insensitive.
         $t = strtolower($userAgent);
@@ -151,7 +151,7 @@ final class UserAgent
      *
      * @see https://stackoverflow.com/questions/18070154/get-operating-system-info
      */
-    private static function getOS($userAgent)
+    private static function getOS($userAgent): string
     {
         $ros[] = ['Windows XP', 'Windows XP'];
         $ros[] = ['Windows NT 5.1|Windows NT5.1', 'Windows XP'];

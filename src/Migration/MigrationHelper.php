@@ -26,7 +26,7 @@ final class MigrationHelper
      *
      * @return void
      */
-    public static function migrate($migrations)
+    public static function migrate(array $migrations): void
     {
         $instance = self::getMigrationInstances($migrations);
 
@@ -44,7 +44,7 @@ final class MigrationHelper
      *                          'path' base path of migrations
      *                          'migrations' Array of Migration class
      */
-    public static function drop($migrations)
+    public static function drop(array $migrations): void
     {
         $instance = self::getMigrationInstances($migrations);
 
@@ -62,7 +62,7 @@ final class MigrationHelper
      *
      * @return array<int, Migration>
      */
-    public static function getMigrationInstances($migrations)
+    public static function getMigrationInstances(array $migrations): array
     {
         $basePath            = $migrations['path'];
         $migrationClassNames = $migrations['migrations'];
