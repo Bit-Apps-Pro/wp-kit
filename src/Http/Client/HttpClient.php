@@ -6,6 +6,7 @@ use BadMethodCallException;
 use BitApps\WPKit\Helpers\JSON;
 
 use InvalidArgumentException;
+use WP_Error;
 
 final class HttpClient
 {
@@ -257,9 +258,18 @@ final class HttpClient
         ];
         $options = wp_parse_args($options, $defaultOptions);
 
-        $requestResponse = $this->_allowUnsafeUrls
-            ? wp_remote_request($url, $options)
-            : wp_safe_remote_request($url, $options);
+        if ($this->_allowUnsafeUrls) {
+            if (!$this->isUnsafeUrlAllowed($url)) {
+                $this->_requestResponse = new WP_Error('unsafe_url_not_allowed', 'Unsafe URL host is not allowlisted.');
+
+                return $this->_requestResponse;
+            }
+
+            $options['redirection'] = 0;
+            $requestResponse        = wp_remote_request($url, $options);
+        } else {
+            $requestResponse = wp_safe_remote_request($url, $options);
+        }
 
         $this->_requestResponse = $requestResponse;
 
@@ -458,5 +468,20 @@ final class HttpClient
         }
 
         return $host;
+    }
+
+    private function isUnsafeUrlAllowed($url): bool
+    {
+        $urlParts = wp_parse_url($url);
+        if (!\is_array($urlParts) || !isset($urlParts['scheme'], $urlParts['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($urlParts['scheme']);
+        $host   = $this->normalizeHost($urlParts['host']);
+
+        return \in_array($scheme, ['http', 'https'], true)
+            && $host !== ''
+            && \in_array($host, $this->_allowedUnsafeHosts, true);
     }
 }

@@ -6,6 +6,7 @@ use BadMethodCallException;
 use BitApps\WPKit\Http\Client\HttpClient;
 use BitApps\WPKit\Tests\TestCase;
 use FakeWpError;
+use WP_Error;
 use WpKitTestState;
 
 /**
@@ -24,14 +25,128 @@ final class HttpClientTest extends TestCase
         assertSameValue(true, $response->safe, 'JSON response was not decoded');
     }
 
-    public function testHTTPClientUnsafeRemoteRequestsRequireExplicitOptIn(): void
+    public function testHTTPClientUnsafeRemoteRequestsFailClosedWithoutAnAllowlist(): void
     {
-        $client = new HttpClient();
-        $client->allowUnsafeUrls();
+        $client   = (new HttpClient())->allowUnsafeUrls();
         $response = $client->request('http://internal.example', 'GET', []);
 
-        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'unsafe opt-in was ignored');
+        assertInstanceOf(WP_Error::class, $response, 'unsafe request without an allowlist was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'rejected URL reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsPermitAnExactAllowlistedHost(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('http://internal.example/resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'exact host did not use unsafe transport');
         assertSameValue(false, $response->safe, 'unsafe transport response was not returned');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectADifferentHost(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('http://other.example/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'different host was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'different host reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectSubdomainsOfAnAllowlistedHost(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['example.com']);
+        $response = $client->request('http://evil.example.com/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'subdomain was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'subdomain reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectHostsWithAnAllowlistedPrefix(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['example.com']);
+        $response = $client->request('http://example.com.evil.test/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'host with allowlisted prefix was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'prefixed host reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsAuthorizeTheParsedHostNotUserInfo(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['example.com']);
+        $response = $client->request('http://user@example.com/resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'URL user info changed host authorization');
+        assertSameValue(false, $response->safe, 'parsed host was not authorized');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsNormalizeTheParsedHost(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['EXAMPLE.COM']);
+        $response = $client->request('http://example.com./resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'normalized host did not use unsafe transport');
+        assertSameValue(false, $response->safe, 'normalized host was not authorized');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectUnsupportedSchemes(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('ftp://internal.example/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'unsupported scheme was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'unsupported scheme reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectHostlessUrls(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'hostless URL was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'hostless URL reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsRejectMalformedUrls(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('http:///resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'malformed URL was not rejected');
+        assertSameValue('unsafe_url_not_allowed', $response->get_error_code(), 'unexpected unsafe URL error code');
+        assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'malformed URL reached a transport');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsPermitAnExactIpv6Host(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['2001:db8::1']);
+        $response = $client->request('http://[2001:db8::1]/resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'exact IPv6 host did not use unsafe transport');
+        assertSameValue(false, $response->safe, 'IPv6 host was not authorized');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsAuthorizeHostsIndependentOfPort(): void
+    {
+        $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('https://internal.example:8443/resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'URL port changed host authorization');
+        assertSameValue(false, $response->safe, 'host with a different port was not authorized');
+    }
+
+    public function testHTTPClientUnsafeRemoteRequestsDisableRedirects(): void
+    {
+        $client = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $client->request('http://internal.example/resource', 'GET', null, null, ['redirection' => 5]);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'allowlisted host did not use unsafe transport');
+        assertSameValue(0, WpKitTestState::$lastHttpRequest['options']['redirection'], 'unsafe transport retained redirects');
     }
 
     public function testHTTPClientUnsafeUrlAllowlistIsNormalizedAndReplaced(): void
@@ -40,7 +155,7 @@ final class HttpClientTest extends TestCase
 
         assertSameValue(
             $client,
-            $client->allowUnsafeUrls(true, ['  INTERNAL.example.  ', '[::1]', '127.0.0.1', 'internal.example']),
+            $client->allowUnsafeUrls(true, ['  INTERNAL.example.  ', '[::1]', '127.0.0.1']),
             'unsafe URL configuration stopped being fluent',
         );
         assertSameValue(
@@ -60,10 +175,18 @@ final class HttpClientTest extends TestCase
 
         assertSameValue(
             $client,
-            $client->setAllowedUnsafeHosts(['', ' https://internal.example ', 'host/path', '[bracketed.example]', [], true, 123, 'valid.example']),
+            $client->setAllowedUnsafeHosts(['', '   ', ' https://internal.example ', 'host/path', '[bracketed.example]', [], true, 123, 'valid.example']),
             'unsafe host allowlist setter stopped being fluent',
         );
         assertSameValue(['valid.example'], $client->getAllowedUnsafeHosts(), 'invalid unsafe host entries were retained');
+    }
+
+    public function testHTTPClientUnsafeHostAllowlistStoresNormalizedDuplicatesOnce(): void
+    {
+        $client = new HttpClient();
+        $client->setAllowedUnsafeHosts(['EXAMPLE.COM', 'example.com.', '  example.com  ']);
+
+        assertSameValue(['example.com'], $client->getAllowedUnsafeHosts(), 'normalized duplicate hosts were retained');
     }
 
     public function testHTTPClientWordPressErrorsAreReturnedUnchanged(): void
