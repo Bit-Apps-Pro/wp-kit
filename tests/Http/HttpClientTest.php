@@ -34,6 +34,38 @@ final class HttpClientTest extends TestCase
         assertSameValue(false, $response->safe, 'unsafe transport response was not returned');
     }
 
+    public function testHTTPClientUnsafeUrlAllowlistIsNormalizedAndReplaced(): void
+    {
+        $client = new HttpClient();
+
+        assertSameValue(
+            $client,
+            $client->allowUnsafeUrls(true, ['  INTERNAL.example.  ', '[::1]', '127.0.0.1', 'internal.example']),
+            'unsafe URL configuration stopped being fluent',
+        );
+        assertSameValue(
+            ['internal.example', '::1', '127.0.0.1'],
+            $client->getAllowedUnsafeHosts(),
+            'unsafe host allowlist was not normalized',
+        );
+
+        $client->allowUnsafeUrls(true);
+
+        assertSameValue([], $client->getAllowedUnsafeHosts(), 'empty unsafe host allowlist did not replace prior entries');
+    }
+
+    public function testHTTPClientUnsafeHostAllowlistRejectsInvalidValues(): void
+    {
+        $client = new HttpClient();
+
+        assertSameValue(
+            $client,
+            $client->setAllowedUnsafeHosts(['', ' https://internal.example ', 'host/path', '[bracketed.example]', [], true, 123, 'valid.example']),
+            'unsafe host allowlist setter stopped being fluent',
+        );
+        assertSameValue(['valid.example'], $client->getAllowedUnsafeHosts(), 'invalid unsafe host entries were retained');
+    }
+
     public function testHTTPClientWordPressErrorsAreReturnedUnchanged(): void
     {
         $client   = new HttpClient();
@@ -45,14 +77,15 @@ final class HttpClientTest extends TestCase
     public function testHTTPClientConstructorAppliesSupportedDefaults(): void
     {
         $client = new HttpClient([
-            'base_uri'          => 'https://example.com/',
-            'content_type'      => 'text/plain',
-            'headers'           => ['X-Test' => 'value'],
-            'body'              => ['body' => 'value'],
-            'form_params'       => ['form' => 'value'],
-            'json'              => ['json' => 'value'],
-            'multipart'         => [['name' => 'part', 'contents' => 'value']],
-            'allow_unsafe_urls' => true,
+            'base_uri'             => 'https://example.com/',
+            'content_type'         => 'text/plain',
+            'headers'              => ['X-Test' => 'value'],
+            'body'                 => ['body' => 'value'],
+            'form_params'          => ['form' => 'value'],
+            'json'                 => ['json' => 'value'],
+            'multipart'            => [['name' => 'part', 'contents' => 'value']],
+            'allow_unsafe_urls'    => true,
+            'allowed_unsafe_hosts' => ['internal.example'],
         ]);
 
         assertSameValue('https://example.com/', $client->getBaseUri(), 'base URI default was not applied');
@@ -65,6 +98,7 @@ final class HttpClientTest extends TestCase
             $client->getMultipart(),
             'multipart default was not applied',
         );
+        assertSameValue(['internal.example'], $client->getAllowedUnsafeHosts(), 'unsafe host allowlist default was not applied');
     }
 
     public function testHTTPClientFluentConfigurationRetainsRequestValues(): void

@@ -37,6 +37,8 @@ final class HttpClient
 
     private bool $_allowUnsafeUrls = false;
 
+    private array $_allowedUnsafeHosts = [];
+
     /**
      * Undocumented function.
      *
@@ -127,9 +129,25 @@ final class HttpClient
         return $this;
     }
 
-    public function allowUnsafeUrls($allow = true): self
+    public function allowUnsafeUrls($allow = true, array $allowedHosts = []): self
     {
         $this->_allowUnsafeUrls = (bool) $allow;
+        $this->setAllowedUnsafeHosts($allowedHosts);
+
+        return $this;
+    }
+
+    public function getAllowedUnsafeHosts(): array
+    {
+        return $this->_allowedUnsafeHosts;
+    }
+
+    public function setAllowedUnsafeHosts(array $hosts): self
+    {
+        $this->_allowedUnsafeHosts = array_values(array_unique(array_filter(array_map(
+            [$this, 'normalizeHost'],
+            $hosts,
+        ))));
 
         return $this;
     }
@@ -298,9 +316,10 @@ final class HttpClient
             $this->setMultipart($config['multipart']);
         }
 
-        if (isset($config['allow_unsafe_urls'])) {
-            $this->allowUnsafeUrls($config['allow_unsafe_urls']);
-        }
+        $this->allowUnsafeUrls(
+            $config['allow_unsafe_urls']    ?? false,
+            $config['allowed_unsafe_hosts'] ?? [],
+        );
     }
 
     public function setJson($data): self
@@ -405,5 +424,39 @@ final class HttpClient
         $multipart .= '--' . $this->getBoundary() . '--';
 
         return $multipart;
+    }
+
+    private function normalizeHost($host): string
+    {
+        if (!\is_string($host)) {
+            return '';
+        }
+
+        $host = trim($host);
+        if ($host === '') {
+            return '';
+        }
+
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                return '';
+            }
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return strtolower($host);
+        }
+
+        $host = strtolower($host);
+        if (str_ends_with($host, '.')) {
+            $host = substr($host, 0, -1);
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            return '';
+        }
+
+        return $host;
     }
 }

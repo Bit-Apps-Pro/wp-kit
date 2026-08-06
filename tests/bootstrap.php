@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
     define('ABSPATH', __DIR__ . '/Fixtures/wordpress/');
 }
 
+require_once dirname(__DIR__) . '/src/Http/Client/HttpClient.php';
+
 final class WpKitTestState
 {
     public static $httpCalls = [];
