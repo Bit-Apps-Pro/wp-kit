@@ -355,6 +355,10 @@ function wp_remote_retrieve_headers($response)
 
 function wp_remote_retrieve_response_code($response)
 {
+    if (is_wp_error($response) || !isset($response['response']) || !is_array($response['response'])) {
+        return '';
+    }
+
     return $response['response']['code'];
 }
 

@@ -249,6 +249,8 @@ final class HttpClient
 
     public function request($url, $type, $data, $headers = null, $options = null)
     {
+        $this->_responseHeaders = [];
+
         $defaultOptions = [
             'method'  => strtoupper($type),
             'headers' => empty($headers) ? $this->getHeaders() : $headers,

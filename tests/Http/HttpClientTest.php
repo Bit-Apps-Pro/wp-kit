@@ -35,6 +35,28 @@ final class HttpClientTest extends TestCase
         assertSameValue(['safe' => 0, 'unsafe' => 0], WpKitTestState::$httpCalls, 'rejected URL reached a transport');
     }
 
+    public function testHTTPClientAuthorizationRejectionClearsHeadersFromAPriorResponse(): void
+    {
+        $client = new HttpClient();
+        $client->request('https://example.com', 'GET', []);
+
+        assertSameValue(['X-Transport' => 'safe'], $client->getResponseHeaders(), 'successful response headers were not stored');
+
+        $client->allowUnsafeUrls(true, ['internal.example']);
+        $response = $client->request('http://other.example/resource', 'GET', []);
+
+        assertInstanceOf(WP_Error::class, $response, 'non-allowlisted host was not rejected');
+        assertSameValue([], $client->getResponseHeaders(), 'authorization rejection retained stale response headers');
+    }
+
+    public function testHTTPClientResponseCodeIsEmptyAfterAuthorizationRejection(): void
+    {
+        $client = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
+        $client->request('http://other.example/resource', 'GET', []);
+
+        assertSameValue('', $client->getResponseCode(), 'authorization rejection exposed a stale or malformed response code');
+    }
+
     public function testHTTPClientUnsafeRemoteRequestsPermitAnExactAllowlistedHost(): void
     {
         $client   = (new HttpClient())->allowUnsafeUrls(true, ['internal.example']);
@@ -222,6 +244,11 @@ final class HttpClientTest extends TestCase
             'multipart default was not applied',
         );
         assertSameValue(['internal.example'], $client->getAllowedUnsafeHosts(), 'unsafe host allowlist default was not applied');
+
+        $response = $client->request('http://internal.example/resource', 'GET', []);
+
+        assertSameValue(['safe' => 0, 'unsafe' => 1], WpKitTestState::$httpCalls, 'constructor did not enable unsafe transport');
+        assertSameValue(false, $response->safe, 'constructor-configured unsafe transport response was not returned');
     }
 
     public function testHTTPClientFluentConfigurationRetainsRequestValues(): void

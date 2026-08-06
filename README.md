@@ -141,6 +141,10 @@ $client = (new HttpClient())
     ->allowUnsafeUrls(true, ['10.0.0.20', 'internal-api.example']);
 ```
 
+Authorization is host-only: URLs must use HTTP or HTTPS, but any port and path
+on an allowlisted host remain reachable. Validate untrusted URL components
+separately.
+
 Only administrator-configured trusted endpoints belong in this allowlist; never
 derive hosts from arbitrary request values. Unsafe requests never follow redirects.
 
