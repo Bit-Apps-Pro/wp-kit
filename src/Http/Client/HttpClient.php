@@ -6,6 +6,7 @@ use BadMethodCallException;
 use BitApps\WPKit\Helpers\JSON;
 
 use InvalidArgumentException;
+use WP_Error;
 
 final class HttpClient
 {
@@ -36,6 +37,8 @@ final class HttpClient
     private array $_options = [];
 
     private bool $_allowUnsafeUrls = false;
+
+    private array $_allowedUnsafeHosts = [];
 
     /**
      * Undocumented function.
@@ -127,9 +130,25 @@ final class HttpClient
         return $this;
     }
 
-    public function allowUnsafeUrls($allow = true): self
+    public function allowUnsafeUrls($allow = true, array $allowedHosts = []): self
     {
         $this->_allowUnsafeUrls = (bool) $allow;
+        $this->setAllowedUnsafeHosts($allowedHosts);
+
+        return $this;
+    }
+
+    public function getAllowedUnsafeHosts(): array
+    {
+        return $this->_allowedUnsafeHosts;
+    }
+
+    public function setAllowedUnsafeHosts(array $hosts): self
+    {
+        $this->_allowedUnsafeHosts = array_values(array_unique(array_filter(array_map(
+            [$this, 'normalizeHost'],
+            $hosts,
+        ))));
 
         return $this;
     }
@@ -230,6 +249,8 @@ final class HttpClient
 
     public function request($url, $type, $data, $headers = null, $options = null)
     {
+        $this->_responseHeaders = [];
+
         $defaultOptions = [
             'method'  => strtoupper($type),
             'headers' => empty($headers) ? $this->getHeaders() : $headers,
@@ -239,9 +260,18 @@ final class HttpClient
         ];
         $options = wp_parse_args($options, $defaultOptions);
 
-        $requestResponse = $this->_allowUnsafeUrls
-            ? wp_remote_request($url, $options)
-            : wp_safe_remote_request($url, $options);
+        if ($this->_allowUnsafeUrls) {
+            if (!$this->isUnsafeUrlAllowed($url)) {
+                $this->_requestResponse = new WP_Error('unsafe_url_not_allowed', 'Unsafe URL host is not allowlisted.');
+
+                return $this->_requestResponse;
+            }
+
+            $options['redirection'] = 0;
+            $requestResponse        = wp_remote_request($url, $options);
+        } else {
+            $requestResponse = wp_safe_remote_request($url, $options);
+        }
 
         $this->_requestResponse = $requestResponse;
 
@@ -298,9 +328,10 @@ final class HttpClient
             $this->setMultipart($config['multipart']);
         }
 
-        if (isset($config['allow_unsafe_urls'])) {
-            $this->allowUnsafeUrls($config['allow_unsafe_urls']);
-        }
+        $this->allowUnsafeUrls(
+            $config['allow_unsafe_urls']    ?? false,
+            $config['allowed_unsafe_hosts'] ?? [],
+        );
     }
 
     public function setJson($data): self
@@ -405,5 +436,54 @@ final class HttpClient
         $multipart .= '--' . $this->getBoundary() . '--';
 
         return $multipart;
+    }
+
+    private function normalizeHost($host): string
+    {
+        if (!\is_string($host)) {
+            return '';
+        }
+
+        $host = trim($host);
+        if ($host === '') {
+            return '';
+        }
+
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                return '';
+            }
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return strtolower($host);
+        }
+
+        $host = strtolower($host);
+        if (str_ends_with($host, '.')) {
+            $host = substr($host, 0, -1);
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            return '';
+        }
+
+        return $host;
+    }
+
+    private function isUnsafeUrlAllowed($url): bool
+    {
+        $urlParts = wp_parse_url($url);
+        if (!\is_array($urlParts) || !isset($urlParts['scheme'], $urlParts['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($urlParts['scheme']);
+        $host   = $this->normalizeHost($urlParts['host']);
+
+        return \in_array($scheme, ['http', 'https'], true)
+            && $host !== ''
+            && \in_array($host, $this->_allowedUnsafeHosts, true);
     }
 }

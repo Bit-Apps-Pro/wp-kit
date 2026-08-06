@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
     define('ABSPATH', __DIR__ . '/Fixtures/wordpress/');
 }
 
+require_once dirname(__DIR__) . '/src/Http/Client/HttpClient.php';
+
 final class WpKitTestState
 {
     public static $httpCalls = [];
@@ -54,7 +56,25 @@ final class WpKitTestState
     public static $isAdmin = false;
 }
 
-final class FakeWpError
+class WP_Error
+{
+    private $code;
+
+    private $message;
+
+    public function __construct($code = '', $message = '')
+    {
+        $this->code    = $code;
+        $this->message = $message;
+    }
+
+    public function get_error_code()
+    {
+        return $this->code;
+    }
+}
+
+final class FakeWpError extends WP_Error
 {
 }
 
@@ -253,7 +273,7 @@ function assertThrows($exceptionClass, callable $callback, $message)
 
 function is_wp_error($value)
 {
-    return $value instanceof FakeWpError;
+    return $value instanceof WP_Error;
 }
 
 // mirrors WordPress core: flushes every buffer level to output, returns nothing
@@ -283,6 +303,11 @@ function wp_unslash($value)
 function wp_parse_args($args, $defaults = [])
 {
     return array_merge($defaults, (array) $args);
+}
+
+function wp_parse_url($url, $component = -1)
+{
+    return parse_url($url, $component);
 }
 
 function wp_json_encode($data, $options = 0, $depth = 512)
@@ -330,6 +355,10 @@ function wp_remote_retrieve_headers($response)
 
 function wp_remote_retrieve_response_code($response)
 {
+    if (is_wp_error($response) || !isset($response['response']) || !is_array($response['response'])) {
+        return '';
+    }
+
     return $response['response']['code'];
 }
 

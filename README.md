@@ -132,8 +132,21 @@ $body   = $client->request('https://api.example.com/hooks', 'POST', ['event' => 
 $code   = $client->getResponseCode();
 ```
 
-Safe by default (`wp_safe_remote_request`); call `$client->allowUnsafeUrls()` to
-reach internal hosts.
+Safe by default (`wp_safe_remote_request`). To reach known internal hosts, an
+administrator must explicitly enable unsafe URLs and allowlist each exact trusted
+endpoint host:
+
+```php
+$client = (new HttpClient())
+    ->allowUnsafeUrls(true, ['10.0.0.20', 'internal-api.example']);
+```
+
+Authorization is host-only: URLs must use HTTP or HTTPS, but any port and path
+on an allowlisted host remain reachable. Validate untrusted URL components
+separately.
+
+Only administrator-configured trusted endpoints belong in this allowlist; never
+derive hosts from arbitrary request values. Unsafe requests never follow redirects.
 
 ### 7. Hooks, shortcodes, lifecycle
 
@@ -177,14 +190,22 @@ front-end page URLs (via rewrite rules) to routes.
   ```
 
 - `HttpClient` uses `wp_safe_remote_request()` by default. Internal or otherwise
-  unsafe URLs require an explicit opt-in:
+  unsafe URLs require an explicit, administrator-configured exact-host allowlist:
 
   ```php
-  $client->allowUnsafeUrls();
+  $client->allowUnsafeUrls(true, ['10.0.0.20', 'internal-api.example']);
   ```
+
+  Do not allowlist hosts supplied by arbitrary requests. Unsafe requests do not
+  follow redirects.
 
 ## Upgrade notes
 
+- `HttpClient::allowUnsafeUrls()` remains a valid call, but calling it without an
+  explicit host allowlist now intentionally fails closed. Unsafe requests return
+  a `WP_Error` with the `unsafe_url_not_allowed` code instead of reaching the
+  transport. Configure exact, trusted hosts with
+  `allowUnsafeUrls(true, ['internal-api.example'])`.
 - `Response::headers()` now requires an array and validates every entry through
   `Response::header()`; invalid header names, values containing CR/LF/NUL, and
   non-scalar values throw `InvalidArgumentException` instead of being stored
