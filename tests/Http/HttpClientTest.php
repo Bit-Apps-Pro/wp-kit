@@ -6,6 +6,7 @@ use BadMethodCallException;
 use BitApps\WPKit\Http\Client\HttpClient;
 use BitApps\WPKit\Tests\TestCase;
 use FakeWpError;
+use InvalidArgumentException;
 use WP_Error;
 use WpKitTestState;
 
@@ -16,6 +17,108 @@ use WpKitTestState;
  */
 final class HttpClientTest extends TestCase
 {
+    public function testHTTPClientOptionsMagicMethodUsesOptionsVerb(): void
+    {
+        (new HttpClient(['base_uri' => 'https://example.com']))->options('/status');
+
+        assertSameValue('OPTIONS', WpKitTestState::$lastHttpRequest['options']['method'], 'OPTIONS verb was unavailable');
+    }
+
+    public function testHTTPClientQueryParametersAppendToExistingQueryString(): void
+    {
+        (new HttpClient(['base_uri' => 'https://example.com']))
+            ->setQueryParams(['page' => 2])
+            ->get('/items?active=1');
+
+        assertSameValue(
+            'https://example.com/items?active=1&page=2',
+            WpKitTestState::$lastHttpRequest['url'],
+            'query string was malformed',
+        );
+    }
+
+    public function testHTTPClientMultipartUsesRealCrlfAndBoundaryHeader(): void
+    {
+        $client = (new HttpClient())->setBoundary('test')->setMultipart([
+            ['name' => 'file', 'contents' => 'data', 'filename' => 'a.txt'],
+        ]);
+
+        $payload = $client->getPreparedPayload();
+
+        assertTest(str_contains($payload, "\r\n"), 'multipart body contains no CRLF');
+        assertTest(!str_contains($payload, '\\r\\n'), 'multipart body contains escaped CRLF text');
+        assertSameValue(
+            'multipart/form-data; boundary=-------test',
+            $client->getHeaders()['Content-Type'],
+            'boundary missing from content type',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsAnyConflictingPayloadMode(): void
+    {
+        $client = (new HttpClient())
+            ->setMultipart([['name' => 'a', 'contents' => 'b']])
+            ->setJson(['x' => 1]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart and JSON were combined',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsHeaderInjectionInFilename(): void
+    {
+        $client = (new HttpClient())->setMultipart([
+            ['name' => 'file', 'contents' => 'data', 'filename' => "a.txt\r\nX-Evil: yes"],
+        ]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart filename accepted CRLF',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsHeaderInjectionInBoundary(): void
+    {
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => (new HttpClient())->setBoundary("safe\r\nX-Evil: yes"),
+            'multipart boundary accepted CRLF',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsHeaderInjectionInFieldName(): void
+    {
+        $client = (new HttpClient())->setMultipart([
+            ['name' => "file\r\nX-Evil: yes", 'contents' => 'data'],
+        ]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart field name accepted CRLF',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsInjectedPartHeaders(): void
+    {
+        $client = (new HttpClient())->setMultipart([
+            [
+                'name'     => 'file',
+                'contents' => 'data',
+                'headers'  => ["X-Safe\r\nX-Evil" => 'yes'],
+            ],
+        ]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart part header accepted CRLF',
+        );
+    }
+
     public function testHTTPClientSafeRemoteRequestsAreTheDefault(): void
     {
         $client   = new HttpClient();

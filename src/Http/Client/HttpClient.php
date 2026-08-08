@@ -52,13 +52,10 @@ final class HttpClient
 
     public function __call(string $method, array $params)
     {
-        if (\in_array($method, ['post', 'get', 'put','patch', 'delete', 'head', 'option'])) {
+        $method = strtolower($method);
+        if (\in_array($method, ['post', 'get', 'put', 'patch', 'delete', 'head', 'option', 'options'], true)) {
             $this->_method = $method;
-            $url           = $this->_baseUri . $params[0];
-            $query         = http_build_query($this->getQueryParams());
-            if (!empty($query)) {
-                $url = $url . '?' . $query;
-            }
+            $url           = $this->buildUrl((string) ($params[0] ?? ''));
 
             $data    = $this->getPreparedPayload();
             $headers = $this->getHeaders();
@@ -155,7 +152,10 @@ final class HttpClient
 
     public function setBoundary($boundary): self
     {
-        $this->_boundary = '-------' . (string) $boundary;
+        $this->_boundary = '-------' . $this->validateMultipartMetadata($boundary);
+        if (!empty($this->_multipart)) {
+            $this->_headers['Content-Type'] = ['multipart/form-data; boundary=' . $this->_boundary];
+        }
 
         return $this;
     }
@@ -362,8 +362,8 @@ final class HttpClient
 
     public function setMultipart($data): self
     {
-        $this->setContentType('multipart/form-data; charset=UTF-8');
         $this->_multipart = $data;
+        $this->setMultipartContentType();
 
         return $this;
     }
@@ -377,7 +377,7 @@ final class HttpClient
     {
         $payload = null;
         if (!empty($this->_multipart)) {
-            if (!empty($this->getBody()) && !empty($this->getFormParams()) && !empty($this->getJson())) {
+            if (!empty($this->getBody()) || !empty($this->getFormParams()) || !empty($this->getJson())) {
                 throw new InvalidArgumentException('Do not use multipart with json, params or body');
             }
 
@@ -403,39 +403,101 @@ final class HttpClient
     public function getPreparedMultipart(): string
     {
         $multipart = '';
+        $boundary  = $this->getBoundary();
+        $this->setMultipartContentType();
         if (!empty($this->getMultipart()) && \is_array($this->getMultipart())) {
             foreach ($this->getMultipart() as $part) {
                 if (\is_array($part) && isset($part['name'], $part['contents'])) {
-                    $multipart .= '--' . $this->getBoundary() . '\r\n';
-                    $multipart .= 'Content-Disposition: form-data; name="' . $part['name'] . '"';
+                    $multipart .= '--' . $boundary . "\r\n";
+                    $multipart .= 'Content-Disposition: form-data; name="' . $this->quoteMultipartValue($part['name']) . '"';
                     if (isset($part['filename'])) {
-                        $multipart .= ';filename="' . $part['filename'] . '"';
+                        $multipart .= '; filename="' . $this->quoteMultipartValue($part['filename']) . '"';
                     }
 
-                    $multipart .= '\r\n';
+                    $multipart .= "\r\n";
                     if (isset($part['headers'])) {
                         if (\is_array($part['headers'])) {
                             foreach ($part['headers'] as $key => $value) {
-                                $multipart .= $key . ':';
-                                $multipart .= \is_array($value) ? implode(';', $value) : $value;
-                                $multipart .= '\r\n';
+                                $multipart .= $this->validateMultipartHeaderName($key) . ': ';
+                                $multipart .= $this->validateMultipartHeaderValue($value);
+                                $multipart .= "\r\n";
                             }
                         } elseif (\is_string($part['headers'])) {
-                            $multipart .= $part['headers'] . '\r\n';
+                            $multipart .= $this->validateMultipartMetadata($part['headers']) . "\r\n";
+                        } else {
+                            throw new InvalidArgumentException('Invalid multipart headers.');
                         }
                     }
 
+                    $multipart .= "\r\n";
                     $multipart .= $part['contents'];
-                    $multipart .= '\r\n';
+                    $multipart .= "\r\n";
                 } else {
                     throw new InvalidArgumentException('Multipart must contain name, contents');
                 }
             }
         }
 
-        $multipart .= '--' . $this->getBoundary() . '--';
+        $multipart .= '--' . $boundary . "--\r\n";
 
         return $multipart;
+    }
+
+    private function buildUrl(string $path): string
+    {
+        $baseUri = (string) $this->_baseUri;
+        $url     = $baseUri === '' ? $path : rtrim($baseUri, '/') . '/' . ltrim($path, '/');
+        $query   = http_build_query($this->getQueryParams());
+        if ($query === '') {
+            return $url;
+        }
+
+        $fragment = '';
+        if (($fragmentPosition = strpos($url, '#')) !== false) {
+            $fragment = substr($url, $fragmentPosition);
+            $url      = substr($url, 0, $fragmentPosition);
+        }
+
+        return $url . (str_contains($url, '?') ? '&' : '?') . $query . $fragment;
+    }
+
+    private function setMultipartContentType(): void
+    {
+        $this->_headers['Content-Type'] = ['multipart/form-data; boundary=' . $this->getBoundary()];
+    }
+
+    private function quoteMultipartValue($value): string
+    {
+        return addcslashes($this->validateMultipartMetadata($value), '\\"');
+    }
+
+    private function validateMultipartMetadata($value): string
+    {
+        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
+            throw new InvalidArgumentException('Invalid multipart metadata.');
+        }
+
+        return (string) $value;
+    }
+
+    private function validateMultipartHeaderName(int|string $name): string
+    {
+        if (!\is_string($name) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $name) !== 1) {
+            throw new InvalidArgumentException('Invalid multipart header name.');
+        }
+
+        return $name;
+    }
+
+    private function validateMultipartHeaderValue($value): string
+    {
+        if (\is_array($value)) {
+            $value = array_map([$this, 'validateMultipartMetadata'], $value);
+
+            return implode(';', $value);
+        }
+
+        return $this->validateMultipartMetadata($value);
     }
 
     private function normalizeHost($host): string
