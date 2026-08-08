@@ -103,6 +103,7 @@ final class TransportRegistrationTest extends TestCase
         new Router('static', 'landing', null);
         $transport  = new StaticRouter('landing', 'plugin_activate', 'plugin_deactivate');
         $reflection = new ReflectionProperty($transport, 'content');
+        $reflection->setAccessible(true);
         $reflection->setValue($transport, '<section>route</section>');
 
         assertSameValue(
