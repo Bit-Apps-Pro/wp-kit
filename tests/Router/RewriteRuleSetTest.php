@@ -12,7 +12,31 @@ use BitApps\WPKit\Tests\TestCase;
  */
 final class RewriteRuleSetTest extends TestCase
 {
-    public function testAddPathBuildsProgressiveRulesAndQueryVars(): void
+    public function testLiteralRouteRegistersItsFullRewrite(): void
+    {
+        $set = new RewriteRuleSet('landing');
+        $set->addPath('about');
+
+        assertSameValue(
+            'index.php?pagename=landing',
+            $set->rules()['^landing/about/?$'] ?? null,
+            'literal route rewrite was not generated',
+        );
+    }
+
+    public function testOptionalParameterKeepsItsLiteralPrefix(): void
+    {
+        $set = new RewriteRuleSet('landing');
+        $set->addPath('entries/{slug?}');
+
+        assertSameValue(
+            'index.php?pagename=landing&slug=$matches[1]',
+            $set->rules()['^landing/entries(?:/([^/]+))?/?$'] ?? null,
+            'optional route rewrite was malformed',
+        );
+    }
+
+    public function testAddPathBuildsOneCompleteRuleAndQueryVars(): void
     {
         $set = new RewriteRuleSet('landing');
         $set->addPath('entries/{id}');
@@ -20,11 +44,10 @@ final class RewriteRuleSetTest extends TestCase
         assertSameValue(
             [
                 '^landing/?$'                 => 'index.php?pagename=landing',
-                '^landing/entries/?$'         => 'index.php?pagename=landing',
                 '^landing/entries/([^/]+)/?$' => 'index.php?pagename=landing&id=$matches[1]',
             ],
             $set->rules(),
-            'rewrite rule chain changed',
+            'complete rewrite rule changed',
         );
         assertSameValue(['id'], $set->queryVars(), 'query vars changed');
     }

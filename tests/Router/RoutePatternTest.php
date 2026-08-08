@@ -13,6 +13,18 @@ use InvalidArgumentException;
  */
 final class RoutePatternTest extends TestCase
 {
+    public function testPlaceholdersExposeTokenOffsetsAndRequirements(): void
+    {
+        assertSameValue(
+            [
+                ['token' => '{id}', 'offset' => 8, 'name' => 'id', 'required' => true],
+                ['token' => '{slug?}', 'offset' => 22, 'name' => 'slug', 'required' => false],
+            ],
+            RoutePattern::placeholders('entries/{id}/comments/{slug?}'),
+            'placeholder metadata was not reusable by rewrite generation',
+        );
+    }
+
     public function testCompileBuildsNamedGroupsAndParamMetadata(): void
     {
         $compiled = RoutePattern::compile('entries/{id}/comments/{slug?}');

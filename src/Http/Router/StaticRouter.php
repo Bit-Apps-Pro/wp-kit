@@ -101,12 +101,12 @@ class StaticRouter
 
         $rulesToCheck = $path ? ['^' . trim($path, '/')] : array_keys($rewriteRules);
         foreach ($rulesToCheck as $rule) {
-            if (isset($rules[$rule])) {
-                return true;
+            if (!isset($rules[$rule])) {
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     public function maybeFlushRewriteRules(): void

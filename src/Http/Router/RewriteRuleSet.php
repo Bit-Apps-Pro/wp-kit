@@ -24,26 +24,33 @@ final class RewriteRuleSet
             $this->_rules["^{$this->_pageName}/?$"] = "index.php?pagename={$this->_pageName}";
         }
 
-        preg_match_all(RoutePattern::PLACEHOLDER, $path, $regexMatched);
-        $path         = $this->_pageName . '/' . $path . '/';
-        $matchCount   = 1;
-        $previousPath = "^{$this->_pageName}/?$";
-
-        foreach ($regexMatched[0] as $param) {
-            $param                 = trim($param, '{}?');
-            $pathChunk             = substr($path, 0, strpos($path, "{{$param}}"));
-            $pathChunkWithoutParam = '^' . $pathChunk . '?$';
-            $pathChunkWithParam    = '^' . $pathChunk . '([^/]+)/?$';
-
-            $path = str_replace("{{$param}}", '([^/]+)', $path);
-            if (!isset($this->_rules[$pathChunkWithoutParam]) && strpos($pathChunkWithoutParam, '([^/]+)')) {
-                $previousPath = trim(substr($pathChunkWithoutParam, 0, strpos($pathChunkWithoutParam, '([^/]+)') + \strlen('([^/]+)') + 1), '/') . '/?$';
-            }
-            $this->_rules[$pathChunkWithoutParam] = $this->_rules[$previousPath];
-            $this->_rules[$pathChunkWithParam]    = $this->_rules[$pathChunkWithoutParam] . "&{$param}=\$matches[{$matchCount}]";
-            ++$matchCount;
-            $this->_queryVars[] = $param;
+        $path = trim($path, '/');
+        if ($path === '') {
+            return;
         }
+
+        $regex      = '^' . preg_quote($this->_pageName, '~') . '/';
+        $query      = 'index.php?pagename=' . $this->_pageName;
+        $cursor     = 0;
+        $matchIndex = 1;
+
+        foreach (RoutePattern::placeholders($path) as $placeholder) {
+            $literal = substr($path, $cursor, $placeholder['offset'] - $cursor);
+            $cursor  = $placeholder['offset'] + \strlen($placeholder['token']);
+
+            if (!$placeholder['required'] && str_ends_with($literal, '/')) {
+                $regex .= preg_quote(substr($literal, 0, -1), '~') . '(?:/([^/]+))?';
+            } else {
+                $regex .= preg_quote($literal, '~') . '([^/]+)' . ($placeholder['required'] ? '' : '?');
+            }
+
+            $query .= '&' . $placeholder['name'] . '=$matches[' . $matchIndex . ']';
+            $this->_queryVars[] = $placeholder['name'];
+            ++$matchIndex;
+        }
+
+        $regex .= preg_quote(substr($path, $cursor), '~') . '/?$';
+        $this->_rules[$regex] = $query;
     }
 
     public function rules(): array

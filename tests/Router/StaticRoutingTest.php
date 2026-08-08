@@ -25,8 +25,8 @@ final class StaticRoutingTest extends TestCase
 
         $rules = WpKitTestState::$rewriteRules;
         assertSameValue('index.php?pagename=landing', $rules['^landing/?$']['query'] ?? null, 'page rewrite rule changed');
-        assertSameValue('index.php?pagename=landing', $rules['^landing/entries/?$']['query'] ?? null, 'parameterless segment rewrite rule changed');
         assertSameValue('index.php?pagename=landing&id=$matches[1]', $rules['^landing/entries/([^/]+)/?$']['query'] ?? null, 'parameter rewrite rule changed');
+        assertTest(!isset($rules['^landing/entries/?$']), 'undeclared intermediate route was registered');
     }
 
     public function testRewriteRulesForMultiParameterRouteChainQueryVars(): void
@@ -39,15 +39,11 @@ final class StaticRoutingTest extends TestCase
 
         $rules = WpKitTestState::$rewriteRules;
         assertSameValue(
-            'index.php?pagename=landing&author=$matches[1]',
-            $rules['^landing/books/([^/]+)/chapters/?$']['query'] ?? null,
-            'intermediate rewrite rule lost the first parameter',
-        );
-        assertSameValue(
             'index.php?pagename=landing&author=$matches[1]&chapter=$matches[2]',
             $rules['^landing/books/([^/]+)/chapters/([^/]+)/?$']['query'] ?? null,
             'full rewrite rule did not chain both parameters',
         );
+        assertTest(!isset($rules['^landing/books/([^/]+)/chapters/?$']), 'undeclared intermediate route was registered');
     }
 
     public function testInitWithoutRoutesRegistersNoRulesAndSkipsFlush(): void
@@ -210,6 +206,7 @@ final class StaticRoutingTest extends TestCase
             return 'x';
         }]);
         WpKitTestState::$options['rewrite_rules'] = [
+            '^landing/?$'                 => 'index.php?pagename=landing',
             '^landing/entries/([^/]+)/?$' => 'index.php?pagename=landing&id=$matches[1]',
         ];
 
@@ -225,6 +222,21 @@ final class StaticRoutingTest extends TestCase
         assertTest(StaticRouter::isRewriteExists('landing/custom'), 'persisted path rule was not found');
         assertTest(!StaticRouter::isRewriteExists('landing/other'), 'missing path rule was reported as existing');
         assertTest(!StaticRouter::isRewriteExists(''), 'empty path was reported as existing');
+    }
+
+    public function testPersistedRewriteCheckRequiresEveryRule(): void
+    {
+        WpKitTestState::$options['rewrite_rules'] = [
+            '^landing/?$' => 'index.php?pagename=landing',
+        ];
+
+        assertTest(
+            !StaticRouter::isRewriteExists('', [
+                '^landing/?$'       => 'index.php?pagename=landing',
+                '^landing/about/?$' => 'index.php?pagename=landing',
+            ]),
+            'partial rewrite set was accepted as complete',
+        );
     }
 
     private function makeTransport(array $routes = []): StaticRouter
