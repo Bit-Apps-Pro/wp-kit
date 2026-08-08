@@ -562,8 +562,7 @@ final class RouteRegister
         return match ($this->getRouterType()) {
             RequestType::API  => new Emitter\ApiResponseEmitter(),
             RequestType::AJAX => new Emitter\AjaxResponseEmitter(),
-            // static/web plus any custom type: hand the raw action output back to the caller
-            default => new Emitter\StaticResponseEmitter(),
+            default           => new Emitter\RawResponseEmitter(),
         };
     }
 }

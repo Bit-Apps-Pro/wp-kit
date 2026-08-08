@@ -53,4 +53,14 @@ final class ResponseEmissionTest extends TestCase
 
         assertSameValue('raw-output', $route->handleRequest(), 'non-api/ajax dispatch no longer returns raw data');
     }
+
+    public function testNonStandardRouterTypePreservesRawArrayData(): void
+    {
+        new Router('cron', 'contract-test', null);
+        $route = (new RouteBase())->get('job', static function () {
+            return ['queued' => true];
+        });
+
+        assertSameValue(['queued' => true], $route->handleRequest(), 'custom router array output changed');
+    }
 }

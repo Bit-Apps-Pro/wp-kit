@@ -18,7 +18,7 @@ class StaticRouter
 
     private array $queryVars = [];
 
-    private string $content;
+    private string $content = '';
 
     public function __construct(string $pageName, string $activationHook, string $deactivationHook, ?Router $router = null)
     {
@@ -61,12 +61,19 @@ class StaticRouter
     public function handleRequest(): void
     {
         $requestPath = sanitize_url((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH));
+        $method      = strtoupper(sanitize_text_field($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         foreach ($this->router->getRoutes() as $route) {
+            if (!\in_array($method, $route->getMethods(), true)) {
+                continue;
+            }
+
             if ($this->isRouteMatched($route, $requestPath)) {
                 // this filter needs to be added here to avoid affecting other routes
                 add_filter('the_content', [$this, 'renderContent']);
 
-                $this->content = $route->handleRequest();
+                $this->content = (new Emitter\StaticResponseEmitter())->emit([
+                    'data' => ['data' => $route->handleRequest()],
+                ]);
 
                 return;
             }

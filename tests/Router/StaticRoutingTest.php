@@ -5,7 +5,9 @@ namespace BitApps\WPKit\Tests\Router;
 use BitApps\WPKit\Http\Router\RouteBase;
 use BitApps\WPKit\Http\Router\Router;
 use BitApps\WPKit\Http\Router\StaticRouter;
+use BitApps\WPKit\Http\Router\Emitter\StaticResponseEmitter;
 use BitApps\WPKit\Tests\TestCase;
+use UnexpectedValueException;
 use WpKitTestState;
 
 /**
@@ -15,6 +17,44 @@ use WpKitTestState;
  */
 final class StaticRoutingTest extends TestCase
 {
+    public function testStaticPostRouteDoesNotExecuteOnGet(): void
+    {
+        $called = false;
+        new Router('static', 'landing', null);
+        (new RouteBase())->post('submit', static function () use (&$called) {
+            $called = true;
+
+            return 'submitted';
+        });
+        new StaticRouter('landing', 'plugin_activate', 'plugin_deactivate');
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI']    = '/landing/submit';
+
+        do_action('template_redirect');
+
+        assertSameValue(false, $called, 'POST static action executed for GET');
+    }
+
+    public function testNullStaticOutputRendersAsEmptyContent(): void
+    {
+        $this->makeTransport(['empty' => static fn () => null]);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI']    = '/landing/empty';
+
+        do_action('template_redirect');
+
+        assertSameValue('page', apply_filters('the_content', 'page'), 'null output did not normalize to empty HTML');
+    }
+
+    public function testArrayStaticOutputFailsWithAContractException(): void
+    {
+        assertThrows(
+            UnexpectedValueException::class,
+            static fn () => (new StaticResponseEmitter())->emit(['data' => ['data' => ['invalid']]]),
+            'array static output was accepted',
+        );
+    }
+
     public function testRewriteRulesMapPageAndParameterSegmentsToQueryVars(): void
     {
         $this->makeTransport(['entries/{id}' => static function () {
