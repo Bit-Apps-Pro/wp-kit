@@ -1,6 +1,6 @@
 <?php
 
-use PHPUnit\TextUI\Application;
+use PHPUnit\TextUI\Command;
 
 if (PHP_SAPI !== 'phpdbg') {
     fwrite(STDERR, "Run coverage with PHPDBG.\n");
@@ -10,12 +10,12 @@ if (PHP_SAPI !== 'phpdbg') {
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 phpdbg_start_oplog();
-$testExitCode = (new Application())->run([
+$testExitCode = (new Command())->run([
     'phpunit',
     '--configuration',
     dirname(__DIR__) . '/phpunit.xml',
     '--do-not-cache-result',
-]);
+], false);
 $oplog = phpdbg_end_oplog();
 
 $executable = phpdbg_get_executable();

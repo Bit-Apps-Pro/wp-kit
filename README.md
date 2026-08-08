@@ -132,6 +132,14 @@ $body   = $client->request('https://api.example.com/hooks', 'POST', ['event' => 
 $code   = $client->getResponseCode();
 ```
 
+Dynamic instance verbs include `get`, `post`, `put`, `patch`, `delete`, `head`,
+and `options`. Query parameters are appended safely when the request path already
+contains a query string.
+
+Multipart requests use standards-compliant boundaries and CRLF framing. Multipart
+mode cannot be combined with JSON, form parameters, or a separate request body;
+field names, filenames, boundaries, and part headers reject control characters.
+
 Safe by default (`wp_safe_remote_request`). To reach known internal hosts, an
 administrator must explicitly enable unsafe URLs and allowlist each exact trusted
 endpoint host:
@@ -160,7 +168,9 @@ Shortcode::addShortcode('myplugin_widget', [$plugin, 'renderWidget']);
 
 `Installer` handles activation/deactivation/uninstall and requirement checks;
 `Migration` + `MigrationHelper` run schema migrations; `StaticRouter` maps custom
-front-end page URLs (via rewrite rules) to routes.
+front-end page URLs (via rewrite rules) to routes. Static routes enforce their
+declared HTTP methods. Their actions must return string-compatible page content;
+`null` renders no additional content.
 
 ## Components
 
@@ -234,9 +244,21 @@ front-end page URLs (via rewrite rules) to routes.
   invalid parameter names throw `InvalidArgumentException` at registration.
   Trade-off: an optional param no longer matches the empty-value-with-trailing-
   slash form (`entries/`) on AJAX routes — use `entries` (no slash) instead.
+- Static routes now generate one complete, anchored rewrite rule for every
+  declared path, including literal and optional-parameter paths. Undeclared
+  intermediate prefixes are no longer registered as routes.
+- Static page dispatch now enforces the route's declared HTTP methods and accepts
+  only string-compatible output. Direct `RouteRegister::handleRequest()` and
+  custom router types continue returning raw values for backward compatibility.
+- `Response::success()` and `Response::error()` now start with fresh metadata;
+  messages, codes, and headers no longer leak from an earlier factory response.
+  Bulk header changes are validated completely before replacing existing headers.
+- `Request::input()` and the other frozen request/IP extension points intentionally
+  remain untyped so downstream subclasses with legacy signatures remain compatible.
 - IP/device detection classes moved to `Http\Detection\` (`ClientIpResolver`,
   `UserAgent`). The `Http\IpTool` trait and `Request::ip()`/`device()` facade
-  are unchanged.
+  are unchanged. Modern `Edg/` user agents are recognized as Edge, and OS matching
+  no longer suppresses malformed regular-expression warnings.
 
 ## Tests
 
