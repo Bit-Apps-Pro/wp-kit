@@ -44,7 +44,7 @@ final class ResponseEnvelope
         ];
     }
 
-    private static function normalize($result)
+    private static function normalize($result): Response
     {
         if (is_wp_error($result)) {
             return Response::error($result->get_error_data())
