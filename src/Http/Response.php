@@ -54,13 +54,7 @@ final class Response
      */
     public static function success($data, $httpStatus = 200): self
     {
-        $current          = self::current();
-        $current->_data   = $data;
-        $current->_status = self::SUCCESS;
-
-        $current->_httpStatus = $httpStatus;
-
-        return $current;
+        return self::start($data, self::SUCCESS, $httpStatus);
     }
 
     /**
@@ -73,13 +67,7 @@ final class Response
      */
     public static function error($data, $httpStatus = 400): self
     {
-        $current          = self::current();
-        $current->_data   = $data;
-        $current->_status = self::ERROR;
-
-        $current->_httpStatus = $httpStatus;
-
-        return $current;
+        return self::start($data, self::ERROR, $httpStatus);
     }
 
     /**
@@ -201,12 +189,16 @@ final class Response
             throw new InvalidArgumentException('Response headers must be an array.');
         }
 
-        self::current()->_headers = [];
+        $validated = [];
         foreach ($headers as $header => $value) {
-            self::header($header, $value);
+            [$header, $value]   = self::validateHeader($header, $value);
+            $validated[$header] = $value;
         }
 
-        return self::current();
+        $current           = self::current();
+        $current->_headers = $validated;
+
+        return $current;
     }
 
     /**
@@ -219,13 +211,7 @@ final class Response
      */
     public static function header($header, $value): self
     {
-        if (!\is_string($header) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $header) !== 1) {
-            throw new InvalidArgumentException('Invalid response header name.');
-        }
-
-        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
-            throw new InvalidArgumentException('Invalid response header value.');
-        }
+        [$header, $value] = self::validateHeader($header, $value);
 
         $current                    = self::current();
         $current->_headers[$header] = $value;
@@ -241,6 +227,29 @@ final class Response
     public static function getHeaders(): array
     {
         return self::current()->_headers;
+    }
+
+    private static function start($data, string $status, $httpStatus): self
+    {
+        $response              = new self();
+        $response->_data       = $data;
+        $response->_status     = $status;
+        $response->_httpStatus = $httpStatus;
+
+        return self::$_current = $response;
+    }
+
+    private static function validateHeader($header, $value): array
+    {
+        if (!\is_string($header) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $header) !== 1) {
+            throw new InvalidArgumentException('Invalid response header name.');
+        }
+
+        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
+            throw new InvalidArgumentException('Invalid response header value.');
+        }
+
+        return [$header, $value];
     }
 
     private static function current(): Response

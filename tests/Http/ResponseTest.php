@@ -13,6 +13,33 @@ use InvalidArgumentException;
  */
 final class ResponseTest extends TestCase
 {
+    public function testSuccessFactoryDoesNotRetainPriorMetadata(): void
+    {
+        Response::error(['old'])->message('old')->code('OLD')->header('X-Old', 'yes');
+
+        $response = Response::success(['new']);
+
+        assertSameValue(null, $response->getMessage(), 'success retained an old message');
+        assertSameValue('SUCCESS', $response->getCode(), 'success retained an old code');
+        assertSameValue([], $response->getHeaders(), 'success retained old headers');
+    }
+
+    public function testInvalidBulkHeadersDoNotPartiallyReplaceExistingHeaders(): void
+    {
+        Response::header('X-Existing', 'yes');
+
+        try {
+            Response::headers(['X-Valid' => 'yes', "Bad\r\nName" => 'no']);
+        } catch (InvalidArgumentException) {
+        }
+
+        assertSameValue(
+            ['X-Existing' => 'yes'],
+            Response::getHeaders(),
+            'invalid bulk headers partially replaced the existing collection',
+        );
+    }
+
     public function testResponseSuccessFactoryExposesDataMetadataAndChaining(): void
     {
         $response = Response::success(['id' => 42], 201)
