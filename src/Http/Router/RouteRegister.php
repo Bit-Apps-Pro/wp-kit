@@ -281,11 +281,11 @@ final class RouteRegister
 
     private function resolveParamValue(ReflectionParameter $param)
     {
-        $value = !$param->isOptional() && $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
-
-        $paramName = $param->getName();
-        if ($isRouteParam = $this->getRouteParamValue($paramName)) {
-            $value = $isRouteParam;
+        $value         = $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+        $paramName     = $param->getName();
+        $hasRouteParam = $this->hasRouteParamValue($paramName);
+        if ($hasRouteParam) {
+            $value = $this->_routeParamValues[$paramName];
         }
 
         if (!$type = $param->getType()) {
@@ -305,7 +305,7 @@ final class RouteRegister
         if ($type === Request::class || is_subclass_of($type, Request::class)) {
             $this->setRequest($type);
             $value = $this->resolveRequest();
-        } elseif ($isRouteParam && $value === $isRouteParam && method_exists($type, '__construct')) {
+        } elseif ($hasRouteParam && method_exists($type, '__construct')) {
             $constructor = new ReflectionMethod($type, '__construct');
             if ($constructor->getNumberOfParameters() === 1) {
                 $parameter = $constructor->getParameters()[0];
@@ -320,6 +320,11 @@ final class RouteRegister
         }
 
         return $value;
+    }
+
+    private function hasRouteParamValue(string $name): bool
+    {
+        return \array_key_exists($name, $this->_routeParamValues);
     }
 
     private function runMiddlewares(): void

@@ -259,6 +259,23 @@ final class DispatchTest extends TestCase
         assertSameValue(['result' => 'executed'], $response, 'static dispatch did not return action data');
     }
 
+    public function testRouteDispatchInjectsStringZeroRouteParameter(): void
+    {
+        new Router('static', 'contract-test', null);
+        $route = (new RouteBase())->get('entries/{id}', static fn ($id) => $id);
+        $route->setRouteParamValue('id', '0');
+
+        assertSameValue('0', $route->handleRequest(), 'falsey route value was discarded');
+    }
+
+    public function testRouteDispatchUsesDeclaredActionDefault(): void
+    {
+        new Router('static', 'contract-test', null);
+        $route = (new RouteBase())->get('entries', static fn ($limit = 25) => $limit);
+
+        assertSameValue(25, $route->handleRequest(), 'declared action default was replaced with null');
+    }
+
     public function testRouteDispatchResponseMetadataResetsBetweenRequests(): void
     {
         Response::error([])->message('stale error');
