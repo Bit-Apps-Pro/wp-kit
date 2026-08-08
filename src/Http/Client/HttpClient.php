@@ -14,11 +14,17 @@ final class HttpClient
 
     private $_body;
 
+    private bool $_hasBody = false;
+
     private $_formParams = [];
+
+    private bool $_hasFormParams = false;
 
     private $_multipart = [];
 
     private $_json = [];
+
+    private bool $_hasJson = false;
 
     private $_queryParams = [];
 
@@ -152,7 +158,12 @@ final class HttpClient
 
     public function setBoundary($boundary): self
     {
-        $this->_boundary = '-------' . $this->validateMultipartMetadata($boundary);
+        $boundary = $this->validateMultipartMetadata($boundary);
+        if ($boundary === '' || \strlen($boundary) > 63 || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $boundary) !== 1) {
+            throw new InvalidArgumentException('Invalid multipart boundary.');
+        }
+
+        $this->_boundary = '-------' . $boundary;
         if (!empty($this->_multipart)) {
             $this->_headers['Content-Type'] = ['multipart/form-data; boundary=' . $this->_boundary];
         }
@@ -163,7 +174,7 @@ final class HttpClient
     public function getBoundary(): string
     {
         if (!isset($this->_boundary)) {
-            $this->setBoundary(wp_generate_password(24));
+            $this->setBoundary(wp_generate_password(24, false, false));
         }
 
         return $this->_boundary;
@@ -237,7 +248,8 @@ final class HttpClient
 
     public function setBody($body): self
     {
-        $this->_body = $body;
+        $this->_body    = $body;
+        $this->_hasBody = true;
 
         return $this;
     }
@@ -337,7 +349,8 @@ final class HttpClient
     public function setJson($data): self
     {
         $this->setContentType('application/json');
-        $this->_json = $data;
+        $this->_json    = $data;
+        $this->_hasJson = true;
 
         return $this;
     }
@@ -350,7 +363,8 @@ final class HttpClient
     public function setFormParams($data): self
     {
         $this->setContentType('application/x-www-form-urlencoded');
-        $this->_formParams = $data;
+        $this->_formParams    = $data;
+        $this->_hasFormParams = true;
 
         return $this;
     }
@@ -377,7 +391,7 @@ final class HttpClient
     {
         $payload = null;
         if (!empty($this->_multipart)) {
-            if (!empty($this->getBody()) || !empty($this->getFormParams()) || !empty($this->getJson())) {
+            if ($this->_hasBody || $this->_hasFormParams || $this->_hasJson) {
                 throw new InvalidArgumentException('Do not use multipart with json, params or body');
             }
 

@@ -2,6 +2,7 @@
 
 namespace BitApps\WPKit\Tests\Router;
 
+use BitApps\WPKit\Http\Response;
 use BitApps\WPKit\Http\Router\RouteBase;
 use BitApps\WPKit\Http\Router\Router;
 use BitApps\WPKit\Http\Router\StaticRouter;
@@ -9,6 +10,14 @@ use BitApps\WPKit\Http\Router\Emitter\StaticResponseEmitter;
 use BitApps\WPKit\Tests\TestCase;
 use UnexpectedValueException;
 use WpKitTestState;
+
+final class StaticDenyMiddleware
+{
+    public function handle()
+    {
+        return Response::error([])->code('DENIED')->message('Denied');
+    }
+}
 
 /**
  * @internal
@@ -33,6 +42,25 @@ final class StaticRoutingTest extends TestCase
         do_action('template_redirect');
 
         assertSameValue(false, $called, 'POST static action executed for GET');
+    }
+
+    public function testDeniedStaticRouteDoesNotRenderErrorDataAsHtml(): void
+    {
+        $called = false;
+        $router = new Router('static', 'landing', null);
+        $router->setMiddlewares(['deny' => StaticDenyMiddleware::class]);
+        (new RouteBase())->middleware('deny')->get('protected', static function () use (&$called) {
+            $called = true;
+
+            return 'secret';
+        });
+        new StaticRouter('landing', 'plugin_activate', 'plugin_deactivate');
+        $_SERVER['REQUEST_URI'] = '/landing/protected';
+
+        do_action('template_redirect');
+
+        assertSameValue(false, $called, 'denied static action executed');
+        assertSameValue('page', apply_filters('the_content', 'page'), 'denial data was rendered as page HTML');
     }
 
     public function testNullStaticOutputRendersAsEmptyContent(): void

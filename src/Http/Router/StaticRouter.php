@@ -3,6 +3,7 @@
 namespace BitApps\WPKit\Http\Router;
 
 use BitApps\WPKit\Http\RequestType;
+use BitApps\WPKit\Http\Response;
 
 if (!\defined('ABSPATH')) {
     exit;
@@ -68,12 +69,17 @@ class StaticRouter
             }
 
             if ($this->isRouteMatched($route, $requestPath)) {
-                // this filter needs to be added here to avoid affecting other routes
-                add_filter('the_content', [$this, 'renderContent']);
+                $result = $route->handleRequest();
+                if (Response::ERROR === Response::getStatus()) {
+                    return;
+                }
 
                 $this->content = (new Emitter\StaticResponseEmitter())->emit([
-                    'data' => ['data' => $route->handleRequest()],
+                    'data' => ['data' => $result],
                 ]);
+
+                // this filter needs to be added here to avoid affecting other routes
+                add_filter('the_content', [$this, 'renderContent']);
 
                 return;
             }

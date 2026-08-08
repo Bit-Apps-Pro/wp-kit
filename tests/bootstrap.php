@@ -362,7 +362,7 @@ function wp_remote_retrieve_response_code($response)
     return $response['response']['code'];
 }
 
-function wp_generate_password($length)
+function wp_generate_password($length, $specialChars = true, $extraSpecialChars = false)
 {
     return str_repeat('a', $length);
 }

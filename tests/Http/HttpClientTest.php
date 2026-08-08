@@ -89,6 +89,15 @@ final class HttpClientTest extends TestCase
         );
     }
 
+    public function testHTTPClientMultipartRejectsNonTokenBoundaryCharacters(): void
+    {
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => (new HttpClient())->setBoundary('safe; charset=evil'),
+            'multipart boundary accepted header delimiters',
+        );
+    }
+
     public function testHTTPClientMultipartRejectsHeaderInjectionInFieldName(): void
     {
         $client = (new HttpClient())->setMultipart([
@@ -116,6 +125,32 @@ final class HttpClientTest extends TestCase
             InvalidArgumentException::class,
             static fn () => $client->getPreparedPayload(),
             'multipart part header accepted CRLF',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsConfiguredStringZeroBody(): void
+    {
+        $client = (new HttpClient())
+            ->setBody('0')
+            ->setMultipart([['name' => 'a', 'contents' => 'b']]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart ignored a configured falsey body',
+        );
+    }
+
+    public function testHTTPClientMultipartRejectsConfiguredZeroJson(): void
+    {
+        $client = (new HttpClient())
+            ->setJson(0)
+            ->setMultipart([['name' => 'a', 'contents' => 'b']]);
+
+        assertThrows(
+            InvalidArgumentException::class,
+            static fn () => $client->getPreparedPayload(),
+            'multipart ignored configured falsey JSON',
         );
     }
 
