@@ -94,6 +94,15 @@ final class ClientIpResolverTest extends TestCase
         assertSameValue('10.0.0.2', Request::ip(), 'peer matched an invalid CIDR prefix');
     }
 
+    public function testClientIPInvalidProxyEntriesDoNotDisableValidRanges(): void
+    {
+        Request::setTrustedProxies(['invalid', '10.0.0.0/999', '10.0.0.0/8']);
+        $_SERVER['REMOTE_ADDR']          = '10.0.0.2';
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.10';
+
+        assertSameValue('203.0.113.10', Request::ip(), 'invalid proxy entries disabled a valid trusted range');
+    }
+
     public function testClientIPPartialByteCIDRMasksMatchValidPeers(): void
     {
         Request::setTrustedProxies(['10.0.0.0/9']);

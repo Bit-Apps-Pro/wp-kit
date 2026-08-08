@@ -14,7 +14,7 @@ trait IpTool
     /**
      * Provide user details.
      *
-     * @return setUserDetail user details array
+     * @return array user details array
      */
     public static function getUserDetail()
     {
@@ -24,7 +24,7 @@ trait IpTool
     /**
      * Provide user IP address.
      *
-     * @return ip
+     * @return string|false IP address of current visitor
      */
     public static function ip()
     {
@@ -60,7 +60,7 @@ trait IpTool
      *
      * @return array of user details
      */
-    private static function setUserDetail()
+    private static function setUserDetail(): array
     {
         $userDetails['ip']     = ip2long(ClientIpResolver::checkIP());
         $userDetails['device'] = UserAgent::checkDevice();
