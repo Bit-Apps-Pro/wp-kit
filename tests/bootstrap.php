@@ -461,9 +461,16 @@ function flush_rewrite_rules()
     ++WpKitTestState::$rewriteFlushes;
 }
 
-function get_option($name)
+function get_option($name, $default = false)
 {
-    return WpKitTestState::$options[$name] ?? false;
+    return WpKitTestState::$options[$name] ?? $default;
+}
+
+function update_option($name, $value, $autoload = null)
+{
+    WpKitTestState::$options[$name] = $value;
+
+    return true;
 }
 
 function current_time($type)
