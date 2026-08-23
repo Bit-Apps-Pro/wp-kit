@@ -260,6 +260,166 @@ declared HTTP methods. Their actions must return string-compatible page content;
   are unchanged. Modern `Edg/` user agents are recognized as Edge, and OS matching
   no longer suppresses malformed regular-expression warnings.
 
+## Container
+
+Lightweight IoC container for managing service bindings and providers. Supports
+constructor autowiring: when resolving a type, dependencies are automatically
+injected if their classes are type-hinted in the constructor.
+
+```php
+use BitApps\WPKit\Container\Application;
+use BitApps\WPKit\Container\ServiceProvider;
+
+// Build a container with service providers.
+$app = new Application();
+
+// Register a simple binding.
+$app->bind(Logger::class, FileLogger::class);
+
+// Register a shared singleton instance (same instance every time).
+$app->singleton(Database::class, function ($container) {
+    return new Database($container->make(Connection::class));
+});
+
+// Resolve and autowire dependencies.
+$logger = $app->make(Logger::class);      // resolves as FileLogger
+$db = $app->make(Database::class);        // autowires Connection
+
+// Register a service provider.
+class MailProvider extends ServiceProvider {
+    public function register(): void {
+        $this->app->singleton(Mailer::class);
+    }
+    
+    public function boot(): void {
+        // Bootstrap logic after all providers are registered.
+    }
+}
+
+$app->register(MailProvider::class);
+
+// Boot all registered providers.
+$app->boot();
+```
+
+## Settings
+
+Typed get/set/save access to wp_options rows. Define a schema of typed fields,
+then use a `SettingsRepository` to load, modify, and persist them with automatic
+casting and sanitization.
+
+```php
+use BitApps\WPKit\Settings\SettingField;
+use BitApps\WPKit\Settings\SettingsSchema;
+use BitApps\WPKit\Settings\SettingsRepository;
+
+// Define a schema with typed fields.
+$schema = (new SettingsSchema())
+    ->add(
+        SettingField::bool('enabled', false, 'general'),
+        SettingField::int('max_retries', 3, 'general'),
+        SettingField::enum('log_level', ['debug', 'info', 'error'], 'info', 'logging'),
+        SettingField::string('api_key', '', 'api')
+    );
+
+// Create a repository for the wp_options row.
+$repo = new SettingsRepository('myplugin_settings', $schema);
+
+// Get typed values (with automatic casting from stored values).
+$enabled = $repo->get('enabled');       // bool
+$level = $repo->get('log_level');       // string (validated against choices)
+
+// Set values (cast to field type).
+$repo->set('enabled', '1')->set('max_retries', '5');
+
+// Bulk update and save.
+$repo->fill(['enabled' => true, 'api_key' => 'secret']);
+$repo->save();
+```
+
+## Cron
+
+Registers custom cron schedules and recurring/one-off jobs. Wire callbacks onto
+WordPress cron hooks with fluent scheduling.
+
+```php
+use BitApps\WPKit\Cron\Scheduler;
+
+$scheduler = new Scheduler();
+
+// Define a custom cron interval.
+$scheduler->addSchedule('every_minute', 60, 'Every Minute');
+
+// Register a recurring job.
+$scheduler
+    ->job('myplugin_hourly_sync', 'hourly', function () {
+        // Sync data every hour.
+    })
+    ->job('myplugin_sync', 'every_minute', function () {
+        // Custom schedule set via addSchedule.
+    });
+
+// Register a one-off job.
+$scheduler->once('myplugin_one_time', time() + 3600, function () {
+    // Fire once, in 1 hour.
+});
+
+// Wire hooks and schedule pending events.
+$scheduler->boot();
+
+// On plugin deactivation, clear all scheduled events.
+$scheduler->clearAll();
+```
+
+## Cache
+
+Manages named cache stores (array, transient, WP object cache, or file). Access
+stores via the manager, or use the static `Cache` facade.
+
+```php
+use BitApps\WPKit\Cache\CacheManager;
+use BitApps\WPKit\Cache\Cache;
+
+// Configure a manager with multiple stores.
+$manager = new CacheManager([
+    'default' => 'transient',
+    'prefix'  => 'myplugin_',
+    'stores'  => [
+        'file' => ['path' => '/var/cache/myplugin'],
+        'object' => ['group' => 'myplugin_group'],
+    ],
+]);
+
+// Access a named store (defaults to 'transient').
+$cache = $manager->store('file');
+
+// Cache operations.
+$cache->put('user_123', $userData, 3600);
+$user = $cache->get('user_123');
+
+// Callback-based caching (compute and store on miss).
+$data = $cache->remember('expensive_key', 7200, function () {
+    return compute_expensive_data();
+});
+
+$cache->forget('user_123');
+$cache->flush();
+
+// Use the static facade (requires setManager first).
+Cache::setManager($manager);
+$data = Cache::remember('cached_posts', 3600, function () {
+    return get_posts(['numberposts' => 10]);
+});
+
+// Available stores:
+// - 'array': in-memory only, lost on shutdown.
+// - 'transient': WordPress transients (data persists across requests).
+// - 'object': WordPress object cache (non-persistent unless a drop-in is installed).
+// - 'file': filesystem, requires configured path.
+
+// Note: TransientStore::flush() is a documented no-op (WordPress limitation).
+```
+
 ## Tests
 
 ```bash
