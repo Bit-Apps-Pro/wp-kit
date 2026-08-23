@@ -56,6 +56,10 @@ final class WpKitTestState
     public static $wpVersion = '6.6';
 
     public static $isAdmin = false;
+
+    public static $transients = [];
+
+    public static $objectCache = [];
 }
 
 class WP_Error
@@ -218,6 +222,8 @@ function resetWpKitTestState()
     WpKitTestState::$multisite     = false;
     WpKitTestState::$wpVersion     = '6.6';
     WpKitTestState::$isAdmin       = false;
+    WpKitTestState::$transients    = [];
+    WpKitTestState::$objectCache   = [];
 
     $_GET     = [];
     $_POST    = [];
@@ -505,6 +511,90 @@ function update_option($name, $value, $autoload = null)
 function current_time($type)
 {
     return WpKitTestState::$currentTime;
+}
+
+function get_transient($key)
+{
+    $entry = WpKitTestState::$transients[$key] ?? null;
+
+    if ($entry === null) {
+        return false;
+    }
+
+    if ($entry['expires'] !== null && strtotime(WpKitTestState::$currentTime) >= $entry['expires']) {
+        unset(WpKitTestState::$transients[$key]);
+
+        return false;
+    }
+
+    return $entry['value'];
+}
+
+function set_transient($key, $value, $ttl = 0)
+{
+    WpKitTestState::$transients[$key] = [
+        'value'   => $value,
+        'expires' => $ttl > 0 ? strtotime(WpKitTestState::$currentTime) + $ttl : null,
+    ];
+
+    return true;
+}
+
+function delete_transient($key)
+{
+    $existed = array_key_exists($key, WpKitTestState::$transients);
+    unset(WpKitTestState::$transients[$key]);
+
+    return $existed;
+}
+
+function wp_cache_get($key, $group = '', $force = false, &$found = null)
+{
+    $found = array_key_exists($group, WpKitTestState::$objectCache)
+        && array_key_exists($key, WpKitTestState::$objectCache[$group]);
+
+    return $found ? WpKitTestState::$objectCache[$group][$key] : false;
+}
+
+function wp_cache_set($key, $value, $group = '', $ttl = 0)
+{
+    WpKitTestState::$objectCache[$group][$key] = $value;
+
+    return true;
+}
+
+function wp_cache_delete($key, $group = '')
+{
+    if (!isset(WpKitTestState::$objectCache[$group][$key])) {
+        return false;
+    }
+
+    unset(WpKitTestState::$objectCache[$group][$key]);
+
+    return true;
+}
+
+function wp_cache_flush()
+{
+    WpKitTestState::$objectCache = [];
+
+    return true;
+}
+
+function wp_cache_incr($key, $offset = 1, $group = '')
+{
+    if (!isset(WpKitTestState::$objectCache[$group][$key])) {
+        return false;
+    }
+
+    WpKitTestState::$objectCache[$group][$key] = (int) WpKitTestState::$objectCache[$group][$key] + $offset;
+
+    return WpKitTestState::$objectCache[$group][$key];
+}
+
+function wp_cache_decr($key, $offset = 1, $group = '')
+{
+    return wp_cache_incr($key, -$offset, $group);
 }
 
 function wp_timezone_string()
