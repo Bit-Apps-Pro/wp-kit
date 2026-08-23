@@ -15,6 +15,9 @@ final class TransientStore implements Store
 {
     private string $prefix;
 
+    /**
+     * @param string $prefix prepended to every transient name to namespace this store's keys
+     */
     public function __construct(string $prefix = '')
     {
         $this->prefix = $prefix;

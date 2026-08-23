@@ -15,6 +15,9 @@ final class WpObjectCacheStore implements Store
 {
     private string $group;
 
+    /**
+     * @param string $group WordPress object-cache group all of this store's keys are scoped to
+     */
     public function __construct(string $group = 'default')
     {
         $this->group = $group;
@@ -69,6 +72,9 @@ final class WpObjectCacheStore implements Store
 
     /**
      * @inheritDoc
+     *
+     * Blast radius: wp_cache_flush() clears the ENTIRE object cache (every group and plugin),
+     * not just this store's group — WordPress exposes no group-scoped flush.
      */
     public function flush(): bool
     {

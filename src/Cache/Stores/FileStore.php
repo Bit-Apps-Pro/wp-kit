@@ -11,8 +11,6 @@ final class FileStore implements Store
 {
     private string $directory;
 
-    private string $prefix;
-
     /**
      * @var callable
      */
@@ -24,8 +22,9 @@ final class FileStore implements Store
      */
     public function __construct(string $directory, string $prefix = '', ?callable $clock = null)
     {
-        $this->directory = rtrim($directory, '/\\');
-        $this->prefix    = $prefix;
+        // Scope each prefix to its own subdirectory so flush() only clears THIS store's entries,
+        // letting sibling FileStores share a base directory without wiping each other.
+        $this->directory = rtrim($directory, '/\\') . '/' . sha1($prefix);
         $this->clock     = $clock ?? 'time';
 
         if (!is_dir($this->directory)) {
@@ -121,9 +120,12 @@ final class FileStore implements Store
         return $this->increment($key, -$by);
     }
 
+    /**
+     * Maps a cache key to its on-disk file path within this store's prefix-scoped subdirectory.
+     */
     private function path(string $key): string
     {
-        return $this->directory . '/' . sha1($this->prefix . $key);
+        return $this->directory . '/' . sha1($key);
     }
 
     /**
@@ -168,6 +170,12 @@ final class FileStore implements Store
             return false;
         }
 
-        return rename($tmp, $path);
+        if (!rename($tmp, $path)) {
+            unlink($tmp);
+
+            return false;
+        }
+
+        return true;
     }
 }

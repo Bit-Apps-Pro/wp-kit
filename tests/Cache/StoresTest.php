@@ -84,6 +84,27 @@ final class StoresTest extends TestCase
         $this->assertSame('from-b', $b->get('k'));
     }
 
+    public function testTransientStoreAddRespectsExistingKey(): void
+    {
+        $store = new TransientStore();
+        $store->put('k', 'original', 60);
+
+        $this->assertFalse($store->add('k', 'replacement', 60));
+        $this->assertSame('original', $store->get('k'));
+    }
+
+    public function testTransientStoreForeverRoundTrip(): void
+    {
+        \WpKitTestState::$currentTime = '2024-01-01 00:00:00';
+        $store                        = new TransientStore();
+
+        $this->assertTrue($store->forever('k', 'v'));
+
+        \WpKitTestState::$currentTime = '2030-01-01 00:00:00';
+
+        $this->assertSame('v', $store->get('k'));
+    }
+
     public function testObjectCacheStorePutGetRoundTrip(): void
     {
         $store = new WpObjectCacheStore('test-group');
@@ -130,6 +151,23 @@ final class StoresTest extends TestCase
 
         $this->assertSame('from-a', $a->get('k'));
         $this->assertSame('from-b', $b->get('k'));
+    }
+
+    public function testObjectCacheStoreAddRespectsExistingKey(): void
+    {
+        $store = new WpObjectCacheStore('test-group');
+        $store->put('k', 'original', 60);
+
+        $this->assertFalse($store->add('k', 'replacement', 60));
+        $this->assertSame('original', $store->get('k'));
+    }
+
+    public function testObjectCacheStoreForeverRoundTrip(): void
+    {
+        $store = new WpObjectCacheStore('test-group');
+
+        $this->assertTrue($store->forever('k', 'v'));
+        $this->assertSame('v', $store->get('k'));
     }
 
     public function testFileStorePutGetRoundTrip(): void
@@ -193,6 +231,45 @@ final class StoresTest extends TestCase
 
         $this->assertTrue(is_dir($directory));
         $this->assertTrue($store->put('k', 'v', 60));
+        $this->assertSame('v', $store->get('k'));
+    }
+
+    public function testFileStoreFlushIsPrefixScoped(): void
+    {
+        $baseDir = $this->makeFileStoreDirectory();
+        $a       = new FileStore($baseDir, 'a_');
+        $b       = new FileStore($baseDir, 'b_');
+
+        $a->put('k', 'from-a', 60);
+        $b->put('k', 'from-b', 60);
+
+        $this->assertTrue($a->flush());
+
+        $this->assertNull($a->get('k'), 'flushed store must be cleared');
+        $this->assertSame('from-b', $b->get('k'), 'sibling prefix on the same directory must survive');
+    }
+
+    public function testFileStoreAddRespectsExistingKey(): void
+    {
+        $store = new FileStore($this->makeFileStoreDirectory());
+        $store->put('k', 'original', 60);
+
+        $this->assertFalse($store->add('k', 'replacement', 60));
+        $this->assertSame('original', $store->get('k'));
+    }
+
+    public function testFileStoreForeverNeverExpires(): void
+    {
+        $now   = 1000;
+        $clock = function () use (&$now) {
+            return $now;
+        };
+        $store = new FileStore($this->makeFileStoreDirectory(), '', $clock);
+
+        $this->assertTrue($store->forever('k', 'v'));
+
+        $now += 315360000;
+
         $this->assertSame('v', $store->get('k'));
     }
 
