@@ -93,4 +93,46 @@ final class ContainerTest extends TestCase
         $this->expectException(BindingResolutionException::class);
         $c->make(WpKitCircularA::class);
     }
+
+    public function testAliasRedirectsResolveAndPresenceChecks(): void
+    {
+        $c = new Container();
+        $c->singleton(WpKitGreeter::class, WpKitHello::class);
+        $c->alias(WpKitGreeter::class, 'a.alias');
+
+        $this->assertSame($c->make(WpKitGreeter::class), $c->make('a.alias'));
+        $this->assertTrue($c->bound('a.alias'));
+        $this->assertTrue($c->has('a.alias'));
+    }
+
+    public function testBoundReflectsAllBindingKinds(): void
+    {
+        $c = new Container();
+        $this->assertFalse($c->bound('missing'));
+
+        $c->bind('bound.key', WpKitHello::class);
+        $this->assertTrue($c->bound('bound.key'));
+
+        $c->singleton('singleton.key', WpKitHello::class);
+        $this->assertTrue($c->bound('singleton.key'));
+
+        $c->instance('instance.key', new WpKitHello());
+        $this->assertTrue($c->bound('instance.key'));
+
+        $c->alias('bound.key', 'bound.alias');
+        $this->assertTrue($c->bound('bound.alias'));
+    }
+
+    public function testHasCoversBindingsClassExistsFallbackAndMissing(): void
+    {
+        $c = new Container();
+
+        $c->bind('has.key', WpKitHello::class);
+        $this->assertTrue($c->has('has.key'));
+
+        // Unbound but existing class name resolves via the class_exists() fallback.
+        $this->assertTrue($c->has(WpKitHello::class));
+
+        $this->assertFalse($c->has('Bit\\Nonexistent\\Class'));
+    }
 }
