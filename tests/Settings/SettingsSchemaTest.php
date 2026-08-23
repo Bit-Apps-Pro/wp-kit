@@ -26,4 +26,17 @@ final class SettingsSchemaTest extends TestCase
         $field = SettingField::enum('mode', ['full', 'redacted'], 'full');
         $this->assertSame('full', $field->cast('nope')); // invalid → default
     }
+
+    public function testSanitizerRunsAfterTypeCoercion(): void
+    {
+        // '5' is int-cast to 5, then the sanitizer adds 1 → proves coerce-then-sanitize order.
+        $field = SettingField::int('x', 0, null, static fn ($v) => $v + 1);
+        $this->assertSame(6, $field->cast('5'));
+    }
+
+    public function testSanitizerAppliesToStringField(): void
+    {
+        $field = SettingField::string('name', '', null, static fn ($v) => trim($v));
+        $this->assertSame('bob', $field->cast('  bob  '));
+    }
 }

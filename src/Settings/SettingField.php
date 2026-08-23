@@ -98,17 +98,25 @@ final class SettingField
         return new self($key, self::TYPE_ENUM, $default, $group, $choices, $sanitizer);
     }
 
+    /**
+     * Return the field's unique key.
+     */
     public function key(): string
     {
         return $this->key;
     }
 
+    /**
+     * Return the field's value type (one of the TYPE_* constants).
+     */
     public function type(): string
     {
         return $this->type;
     }
 
     /**
+     * Return the field's default value.
+     *
      * @return mixed
      */
     public function default()
@@ -116,11 +124,17 @@ final class SettingField
         return $this->default;
     }
 
+    /**
+     * Return the field's group, or null if it belongs to none.
+     */
     public function group(): ?string
     {
         return $this->group;
     }
 
+    /**
+     * Return the enum field's allowed choices, or null for non-enum fields.
+     */
     public function choices(): ?array
     {
         return $this->choices;
@@ -141,6 +155,8 @@ final class SettingField
     }
 
     /**
+     * Coerce a raw value to this field's type, without applying the sanitizer.
+     *
      * @param mixed $value
      *
      * @return mixed
