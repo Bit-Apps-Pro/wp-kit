@@ -25,6 +25,8 @@ final class WpKitTestState
 
     public static $filters = [];
 
+    public static $cron = [];
+
     public static $restRoutes = [];
 
     public static $shortcodes = [];
@@ -194,6 +196,7 @@ function resetWpKitTestState()
     WpKitTestState::$lastHttpRequest  = null;
     WpKitTestState::$actions          = [];
     WpKitTestState::$filters          = [];
+    WpKitTestState::$cron             = [];
     WpKitTestState::$restRoutes       = [];
     WpKitTestState::$shortcodes       = [];
     WpKitTestState::$shortcodeRenders = [];
@@ -430,6 +433,32 @@ function apply_filters($tag, $value, ...$args)
     }
 
     return $value;
+}
+
+function wp_next_scheduled($hook, $args = [])
+{
+    return WpKitTestState::$cron[$hook] ?? false;
+}
+
+function wp_schedule_event($timestamp, $recurrence, $hook, $args = [])
+{
+    WpKitTestState::$cron[$hook] = $timestamp;
+
+    return true;
+}
+
+function wp_schedule_single_event($timestamp, $hook, $args = [])
+{
+    WpKitTestState::$cron[$hook] = $timestamp;
+
+    return true;
+}
+
+function wp_clear_scheduled_hook($hook, $args = [])
+{
+    unset(WpKitTestState::$cron[$hook]);
+
+    return null;
 }
 
 function register_rest_route($namespace, $route, $args)
