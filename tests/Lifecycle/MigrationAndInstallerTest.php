@@ -25,6 +25,7 @@ function contractInstallerRequirements()
         'php'        => '8.0',
         'wp'         => '6.0',
         'multisite'  => true,
+        'basename'   => 'plugin/plugin.php',
     ];
 }
 
@@ -116,6 +117,107 @@ final class MigrationAndInstallerTest extends TestCase
         assertSameValue([11, 12], WpKitTestState::$switchedBlogs, 'network site traversal changed');
         assertSameValue(2, WpKitTestState::$restoredBlogs, 'network blog restoration changed');
         assertSameValue(2, ContractMigration::$upCalls, 'network migration count changed');
+    }
+
+    public function testInstallerRegisterWiresNewSiteProvisioningOnMultisite(): void
+    {
+        $installer = new Installer(
+            contractInstallerRequirements(),
+            ['activate' => 'plugin_activate'],
+            [
+                'migration' => contractMigrationConfiguration(),
+                'drop'      => contractMigrationConfiguration(),
+            ],
+        );
+
+        $installer->register();
+
+        assertTest(
+            isset(WpKitTestState::$actions['wp_initialize_site']),
+            'new-site provisioning hook was not wired on multisite',
+        );
+    }
+
+    public function testInstallerRegisterSkipsNewSiteProvisioningWhenNotMultisite(): void
+    {
+        $requirements = contractInstallerRequirements();
+        unset($requirements['multisite']);
+        $installer = new Installer(
+            $requirements,
+            ['activate' => 'plugin_activate'],
+            [
+                'migration' => contractMigrationConfiguration(),
+                'drop'      => contractMigrationConfiguration(),
+            ],
+        );
+
+        $installer->register();
+
+        assertTest(
+            !isset(WpKitTestState::$actions['wp_initialize_site']),
+            'new-site provisioning hook was wired without a multisite requirement',
+        );
+    }
+
+    public function testInstallerProvisionsNewSubsiteOnNetworkActiveMultisite(): void
+    {
+        resetContractMigrationCalls();
+        WpKitTestState::$multisite     = true;
+        WpKitTestState::$networkActive = true;
+        $installer                     = new Installer(
+            contractInstallerRequirements(),
+            [],
+            [
+                'migration' => contractMigrationConfiguration(),
+                'drop'      => contractMigrationConfiguration(),
+            ],
+        );
+
+        $installer->provisionNewSite((object) ['blog_id' => 7]);
+
+        assertSameValue([7], WpKitTestState::$switchedBlogs, 'new subsite was not switched to');
+        assertSameValue(1, WpKitTestState::$restoredBlogs, 'new subsite blog was not restored');
+        assertSameValue(1, ContractMigration::$upCalls, 'new subsite migration was not run once');
+    }
+
+    public function testInstallerSkipsProvisioningWhenNotMultisite(): void
+    {
+        resetContractMigrationCalls();
+        WpKitTestState::$multisite     = false;
+        WpKitTestState::$networkActive = true;
+        $installer                     = new Installer(
+            contractInstallerRequirements(),
+            [],
+            [
+                'migration' => contractMigrationConfiguration(),
+                'drop'      => contractMigrationConfiguration(),
+            ],
+        );
+
+        $installer->provisionNewSite((object) ['blog_id' => 7]);
+
+        assertSameValue([], WpKitTestState::$switchedBlogs, 'non-multisite install provisioned a subsite');
+        assertSameValue(0, ContractMigration::$upCalls, 'non-multisite install ran a migration');
+    }
+
+    public function testInstallerSkipsProvisioningWhenNotNetworkActive(): void
+    {
+        resetContractMigrationCalls();
+        WpKitTestState::$multisite     = true;
+        WpKitTestState::$networkActive = false;
+        $installer                     = new Installer(
+            contractInstallerRequirements(),
+            [],
+            [
+                'migration' => contractMigrationConfiguration(),
+                'drop'      => contractMigrationConfiguration(),
+            ],
+        );
+
+        $installer->provisionNewSite((object) ['blog_id' => 7]);
+
+        assertSameValue([], WpKitTestState::$switchedBlogs, 'non-network-active install provisioned a subsite');
+        assertSameValue(0, ContractMigration::$upCalls, 'non-network-active install ran a migration');
     }
 
     public function testInstallerUninstallDropsConfiguredMigrations(): void

@@ -53,6 +53,8 @@ final class WpKitTestState
 
     public static $multisite = false;
 
+    public static $networkActive = false;
+
     public static $wpVersion = '6.6';
 
     public static $isAdmin = false;
@@ -220,6 +222,7 @@ function resetWpKitTestState()
     WpKitTestState::$switchedBlogs = [];
     WpKitTestState::$restoredBlogs = 0;
     WpKitTestState::$multisite     = false;
+    WpKitTestState::$networkActive = false;
     WpKitTestState::$wpVersion     = '6.6';
     WpKitTestState::$isAdmin       = false;
     WpKitTestState::$transients    = [];
@@ -697,4 +700,9 @@ function restore_current_blog()
 function is_multisite()
 {
     return WpKitTestState::$multisite;
+}
+
+function is_plugin_active_for_network($basename)
+{
+    return WpKitTestState::$networkActive;
 }

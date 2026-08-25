@@ -43,6 +43,13 @@ final class Installer
             // Only a static class method or function can be used in an uninstall hook.
             Hooks::addAction($this->_hooks['uninstall'], [self::class, 'uninstall']);
         }
+
+        // On multisite, a subsite created after activation never runs the activation-time
+        // provisioning loop; provision its schema when WordPress initialises the new site. Priority
+        // 20 runs after core's own priority-10 handler that creates the blog's options/core tables.
+        if (!empty($this->_requirements['multisite'])) {
+            add_action('wp_initialize_site', [$this, 'provisionNewSite'], 20);
+        }
     }
 
     public function activate($isNetworkActivation): void
@@ -73,6 +80,47 @@ final class Installer
             $this->activateOnSingleSite();
             restore_current_blog();
         }
+    }
+
+    /**
+     * Provision the plugin schema on a subsite created after network activation, which the
+     * activation-time loop never covers. Idempotent (migrations are CREATE TABLE IF NOT EXISTS);
+     * gated to network-active multisite installs so tables are never created on a site not running
+     * the plugin.
+     *
+     * @param object $newSite the WP_Site for the just-created blog
+     */
+    public function provisionNewSite($newSite): void
+    {
+        if (!is_multisite() || !$this->isNetworkActive() || !isset($newSite->blog_id)) {
+            return;
+        }
+
+        switch_to_blog((int) $newSite->blog_id);
+
+        try {
+            MigrationHelper::migrate($this->_migration);
+        } finally {
+            // Restore in a finally so a migration throw can't leave the wrong blog switched.
+            restore_current_blog();
+        }
+    }
+
+    /**
+     * Whether the plugin is active network-wide; gates subsite provisioning to network activations so
+     * a new subsite never gets tables for a plugin that is not actually running network-wide.
+     */
+    public function isNetworkActive(): bool
+    {
+        if (empty($this->_requirements['basename'])) {
+            return false;
+        }
+
+        if (!\function_exists('is_plugin_active_for_network')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        return is_plugin_active_for_network($this->_requirements['basename']);
     }
 
     public static function uninstall(): void
