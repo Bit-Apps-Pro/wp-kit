@@ -2,31 +2,26 @@
 
 namespace BitApps\WPKit\Http\Router;
 
+use BitApps\WPKit\Http\RequestType;
+
 final class Router
 {
-    private $_routes;
+    private array $_routes = [];
 
-    private $_registeredRoutes;
+    private array $_registeredRoutes = [];
 
-    private $_middlewares;
+    private MiddlewareRegistry $_middlewareRegistry;
 
-    private $_registeredMiddlewares;
+    private static ?self $_instance = null;
 
-    private $_namespace;
+    // keyed by type only — two routers of the same type share one slot, last constructed wins
+    private static array $_registry = [];
 
-    private $_version;
-
-    private $_requestType;
-
-    private static $_instance;
-
-    public function __construct($type, $namespace, $version)
+    public function __construct(private $_requestType, private $_namespace, private $_version)
     {
-        $this->_routes      = [];
-        $this->_namespace   = $namespace;
-        $this->_version     = $version;
-        $this->_requestType = $type;
-        self::$_instance    = $this;
+        $this->_middlewareRegistry            = new MiddlewareRegistry();
+        self::$_instance                      = $this;
+        self::$_registry[$this->_requestType] = $this;
     }
 
     public function getRequestType()
@@ -34,7 +29,7 @@ final class Router
         return $this->_requestType;
     }
 
-    public function getVersion()
+    public function getVersion(): string
     {
         return empty($this->_version) ? '' : $this->_version . '/';
     }
@@ -44,81 +39,86 @@ final class Router
         return $this->_namespace;
     }
 
-    public function getAjaxPrefix()
+    public function getAjaxPrefix(): string
     {
         return $this->getNamespace() . (empty($this->_version) ? '' : '/' . $this->_version);
     }
 
-    public function getRoutes()
+    public function getRoutes(): array
     {
         return $this->_routes;
     }
 
     public function getRoute($routeIndex)
     {
-        return isset($this->_routes[$routeIndex]) ? $this->_routes[$routeIndex] : null;
+        return $this->_routes[$routeIndex] ?? null;
     }
 
-    public function addRoute(RouteRegister $route)
+    public function addRoute(RouteRegister $route): void
     {
         $this->_routes[] = $route;
     }
 
-    public function addRegisteredRoute($name, RouteRegister $route)
+    public function addRegisteredRoute($name, RouteRegister $route): void
     {
         $this->_registeredRoutes[$name] = $route;
     }
 
     public function getRegisteredRoute($routeName)
     {
-        return isset($this->_registeredRoutes[$routeName]) ? $this->_registeredRoutes[$routeName] : null;
+        return $this->_registeredRoutes[$routeName] ?? null;
     }
 
-    public function getRegisteredRoutes()
+    public function getRegisteredRoutes(): array
     {
         return $this->_registeredRoutes;
     }
 
-    public static function instance($type = 'ajax', $namespace = null, $version = null)
+    public static function instance($type = null, $namespace = null, $version = null)
     {
-        if (\is_null(self::$_instance)) {
-            self::$_instance = new self($type, $namespace, $version);
+        if ($type === null) {
+            if (\is_null(self::$_instance)) {
+                self::$_instance = new self(RequestType::AJAX, $namespace, $version);
+            }
+
+            return self::$_instance;
         }
 
-        return self::$_instance;
+        // creates, registers, AND makes the new router current — declare routes before constructing transports
+        return self::$_registry[$type] ?? new self($type, $namespace, $version);
     }
 
-    public function registerFile($routeFile)
+    public static function reset(): void
+    {
+        self::$_instance = null;
+        self::$_registry = [];
+    }
+
+    public function registerFile($routeFile): void
     {
         self::$_instance = $this;
 
         include_once $routeFile;
     }
 
-    public function register()
+    public function register(): void
     {
-        if ($this->getRequestType() === 'ajax') {
+        if ($this->getRequestType() === RequestType::AJAX) {
             $ajaxRouter = new AjaxRouter($this);
             $ajaxRouter->registerRoutes();
-        } elseif ($this->getRequestType() === 'api') {
+        } elseif ($this->getRequestType() === RequestType::API) {
             $ajaxRouter = new APIRouter($this);
             $ajaxRouter->registerRoutes();
         }
     }
 
-    public function setMiddlewares($middlewares)
+    public function setMiddlewares($middlewares): void
     {
-        $this->_middlewares = $middlewares;
+        $this->_middlewareRegistry->register($middlewares);
     }
 
     public function getRegisteredMiddleware($name)
     {
-        if (!isset($this->_registeredMiddlewares[$name])) {
-            $this->_registeredMiddlewares[$name] = isset($this->_middlewares[$name])
-                && class_exists($this->_middlewares[$name])
-                && method_exists($this->_middlewares[$name], 'handle') ? new $this->_middlewares[$name]() : null;
-        }
-
-        return $this->_registeredMiddlewares[$name];
+        return $this->_middlewareRegistry->resolve($name);
     }
 }

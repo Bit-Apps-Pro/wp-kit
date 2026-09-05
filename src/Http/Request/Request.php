@@ -18,11 +18,9 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 {
     use IpTool;
 
-    protected $route;
-
     protected $rest;
 
-    protected $attributes = [];
+    protected array $attributes = [];
 
     protected $queryParams = [];
 
@@ -33,45 +31,44 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
     /**
      * Undocumented function.
      */
-    public function __construct(?RouteRegister $route = null)
+    public function __construct(protected ?RouteRegister $route = null)
     {
-        $this->route = $route;
         $this->setBody();
         $this->setQueryParams();
         $this->setRouteParams();
         $this->attributes = (array) $this->queryParams + (array) $this->body + (array) $this->routeParams;
     }
 
-    public function __isset($offset)
+    public function __isset(string $offset)
     {
         return $this->has($offset);
     }
 
-    public function __get($offset)
+    public function __get(string $offset)
     {
         return $this->get($offset);
     }
 
-    public function __set($offset, $value)
+    public function __set(string $offset, mixed $value)
     {
         $this->setAttribute($offset, $value);
     }
 
-    public function __unset($offset)
+    public function __unset(string $offset)
     {
         $this->unsetAttribute($offset);
     }
 
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters)
     {
         if (isset($this->rest) && method_exists($this->rest, $method)) {
             return \call_user_func_array([$this->rest, $method], $parameters);
         }
 
-        throw new RuntimeException('Undefined method [' . (string) $method . '] called on ' . __CLASS__ . 'class.');
+        throw new RuntimeException('Undefined method [' . (string) $method . '] called on ' . self::class . 'class.');
     }
 
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters)
     {
         return (new static())->{$method}(...$parameters);
     }
@@ -123,13 +120,13 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
     }
 
     /**
-     * Provides all files in a request if exist otherwise returns null.
+     * Provides all files in a request, or an empty array when there are none.
      *
-     * @return null|array
+     * @return array
      */
     public function files()
     {
-        return isset($_FILES) ? $_FILES : null;
+        return $_FILES ?? [];
     }
 
     public function all()
@@ -144,9 +141,12 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
 
     public function input($offset, $default = null)
     {
-        $this->get($offset, $default);
+        return $this->get($offset, $default);
     }
 
+    /**
+     * @return mixed[]
+     */
     public function except()
     {
         $paramToIgnore = \func_get_args();
@@ -243,8 +243,8 @@ class Request extends Validator implements ArrayAccess, JsonSerializable
             $this->body = $body;
         } else {
             if (
-                strpos($this->contentType(), 'form-data')                === false
-                && strpos($this->contentType(), 'x-www-form-urlencoded') === false
+                !str_contains($this->contentType(), 'form-data')
+                && !str_contains($this->contentType(), 'x-www-form-urlencoded')
             ) {
                 $this->body = JSON::maybeDecode(file_get_contents('php://input'), JsonConfig::decodeAsArray());
             }

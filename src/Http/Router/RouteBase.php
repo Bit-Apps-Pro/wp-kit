@@ -39,13 +39,13 @@ final class RouteBase
 
     private $_prefix;
 
-    private $_noAuth;
+    private ?bool $_noAuth = null;
 
-    private $_ignoreToken;
+    private ?bool $_ignoreToken = null;
 
-    private $_middleware = [];
+    private array $_middleware = [];
 
-    private static $_isGrouped;
+    private static ?self $_isGrouped = null;
 
     /**
      * Handle static call to route.
@@ -55,7 +55,7 @@ final class RouteBase
      *
      * @return RouteRegister
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters)
     {
         if (method_exists(RouteRegister::class, $method)) {
             $route = \call_user_func_array([$this->getRegistrar(), $method], $parameters);
@@ -64,10 +64,10 @@ final class RouteBase
             return $route;
         }
 
-        throw new RuntimeException('Undefined method [' . $method . '] called on ' . __CLASS__ . ' class.');
+        throw new RuntimeException('Undefined method [' . $method . '] called on ' . self::class . ' class.');
     }
 
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters)
     {
         return (new static())->{$method}(...$parameters);
     }
@@ -79,7 +79,7 @@ final class RouteBase
      *
      * @return RouteBase
      */
-    public function prefix($prefix)
+    public function prefix($prefix): self
     {
         $this->_prefix = $prefix;
 
@@ -91,7 +91,7 @@ final class RouteBase
      *
      * @return RouteBase
      */
-    public function noAuth()
+    public function noAuth(): self
     {
         $this->_noAuth = true;
 
@@ -103,7 +103,7 @@ final class RouteBase
      *
      * @return bool
      */
-    public function isNoAuth()
+    public function isNoAuth(): ?bool
     {
         return $this->_noAuth;
     }
@@ -113,7 +113,7 @@ final class RouteBase
      *
      * @return bool
      */
-    public function isTokenIgnored()
+    public function isTokenIgnored(): ?bool
     {
         return $this->_ignoreToken;
     }
@@ -123,7 +123,7 @@ final class RouteBase
      *
      * @return RouteBase
      */
-    public function ignoreToken()
+    public function ignoreToken(): self
     {
         $this->_ignoreToken = true;
 
@@ -135,9 +135,9 @@ final class RouteBase
      *
      * @return RouteBase
      */
-    public function middleware()
+    public function middleware(): self
     {
-        $this->_middleware = (array) $this->_middleware + \func_get_args();
+        $this->_middleware = array_merge($this->_middleware, \func_get_args());
 
         return $this;
     }
@@ -147,7 +147,7 @@ final class RouteBase
      *
      * @return []
      */
-    public function getMiddleware()
+    public function getMiddleware(): array
     {
         return $this->_middleware;
     }
@@ -169,7 +169,7 @@ final class RouteBase
      *
      * @return $this
      */
-    public function group(Closure $callback)
+    public function group(Closure $callback): self
     {
         self::$_isGrouped = $this;
         $callback();
@@ -197,7 +197,7 @@ final class RouteBase
      *
      * @return RouteRegister
      */
-    private function getRegistrar()
+    private function getRegistrar(): RouteRegister
     {
         $instance = $this;
         if (!\is_null(self::$_isGrouped)) {

@@ -1,0 +1,19 @@
+{
+    "config": {
+        "fail-on-first-error": true
+    },
+    "pre-commit": {
+        "enabled": true,
+        "actions": [
+            {
+                "action": "./vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php --dry-run --diff"
+            },
+            {
+                "action": "composer compat"
+            },
+            {
+                "action": "composer test"
+            }
+        ]
+    }
+}

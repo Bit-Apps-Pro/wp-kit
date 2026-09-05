@@ -6,18 +6,25 @@ use BadMethodCallException;
 use BitApps\WPKit\Helpers\JSON;
 
 use InvalidArgumentException;
+use WP_Error;
 
 final class HttpClient
 {
-    private $_headers = [];
+    private array $_headers = [];
 
     private $_body;
 
+    private bool $_hasBody = false;
+
     private $_formParams = [];
+
+    private bool $_hasFormParams = false;
 
     private $_multipart = [];
 
     private $_json = [];
+
+    private bool $_hasJson = false;
 
     private $_queryParams = [];
 
@@ -25,35 +32,36 @@ final class HttpClient
 
     private $_baseUri;
 
-    private $_boundary;
+    private ?string $_boundary = null;
 
-    private $_method;
+    private ?string $_method = null;
 
     private $_responseHeaders = [];
 
     private $_requestResponse;
 
-    private $_options = [];
+    private array $_options = [];
+
+    private bool $_allowUnsafeUrls = false;
+
+    private array $_allowedUnsafeHosts = [];
 
     /**
      * Undocumented function.
      *
      * @param array $config
      */
-    public function __construct($config = [])
+    public function __construct(array $config = [])
     {
         $this->setDefault($config);
     }
 
-    public function __call($method, $params)
+    public function __call(string $method, array $params)
     {
-        if (\in_array($method, ['post', 'get', 'put','patch', 'delete', 'head', 'option'])) {
+        $method = strtolower($method);
+        if (\in_array($method, ['post', 'get', 'put', 'patch', 'delete', 'head', 'option', 'options'], true)) {
             $this->_method = $method;
-            $url           = $this->_baseUri . $params[0];
-            $query         = http_build_query($this->getQueryParams());
-            if (!empty($query)) {
-                $url = $url . '?' . $query;
-            }
+            $url           = $this->buildUrl((string) ($params[0] ?? ''));
 
             $data    = $this->getPreparedPayload();
             $headers = $this->getHeaders();
@@ -62,10 +70,10 @@ final class HttpClient
             return $this->request($url, $method, $data, $headers, $options);
         }
 
-        throw new BadMethodCallException($method . ' Method not found in ' . __CLASS__);
+        throw new BadMethodCallException($method . ' Method not found in ' . self::class);
     }
 
-    public function setBaseUri($uri)
+    public function setBaseUri($uri): self
     {
         $this->_baseUri = $uri;
 
@@ -77,7 +85,7 @@ final class HttpClient
         return $this->_baseUri;
     }
 
-    public function setHeaders(array $headers)
+    public function setHeaders(array $headers): self
     {
         if (empty($this->_headers)) {
             $this->_headers = $headers;
@@ -90,7 +98,10 @@ final class HttpClient
         return $this;
     }
 
-    public function getHeaders()
+    /**
+     * @return mixed[]
+     */
+    public function getHeaders(): array
     {
         $headers = [];
         foreach ($this->_headers as $key => $value) {
@@ -102,7 +113,7 @@ final class HttpClient
 
     public function getHeader($key)
     {
-        return isset($this->_headers[$key]) ? $this->_headers[$key] : false;
+        return $this->_headers[$key] ?? false;
     }
 
     public function setHeader($key, $value)
@@ -110,35 +121,66 @@ final class HttpClient
         return $this->_headers[ucwords($key)][] = $value;
     }
 
-    public function getOptions()
+    public function getOptions(): array
     {
         return $this->_options;
     }
 
-    public function setOptions(array $options)
+    public function setOptions(array $options): self
     {
         $this->_options = $options;
 
         return $this;
     }
 
-    public function setBoundary($boundary)
+    public function allowUnsafeUrls($allow = true, array $allowedHosts = []): self
     {
-        $this->_boundary = '-------' . (string) $boundary;
+        $this->_allowUnsafeUrls = (bool) $allow;
+        $this->setAllowedUnsafeHosts($allowedHosts);
 
         return $this;
     }
 
-    public function getBoundary()
+    public function getAllowedUnsafeHosts(): array
+    {
+        return $this->_allowedUnsafeHosts;
+    }
+
+    public function setAllowedUnsafeHosts(array $hosts): self
+    {
+        $this->_allowedUnsafeHosts = array_values(array_unique(array_filter(array_map(
+            [$this, 'normalizeHost'],
+            $hosts,
+        ))));
+
+        return $this;
+    }
+
+    public function setBoundary($boundary): self
+    {
+        $boundary = $this->validateMultipartMetadata($boundary);
+        if ($boundary === '' || \strlen($boundary) > 63 || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $boundary) !== 1) {
+            throw new InvalidArgumentException('Invalid multipart boundary.');
+        }
+
+        $this->_boundary = '-------' . $boundary;
+        if (!empty($this->_multipart)) {
+            $this->_headers['Content-Type'] = ['multipart/form-data; boundary=' . $this->_boundary];
+        }
+
+        return $this;
+    }
+
+    public function getBoundary(): string
     {
         if (!isset($this->_boundary)) {
-            $this->_boundary = $this->setBoundary(wp_generate_password(24));
+            $this->setBoundary(wp_generate_password(24, false, false));
         }
 
         return $this->_boundary;
     }
 
-    public function setContentType($contentType)
+    public function setContentType($contentType): self
     {
         $this->setHeader('Content-Type', $contentType);
 
@@ -147,10 +189,10 @@ final class HttpClient
 
     public function getContentType($type)
     {
-        return isset($this->_headers[$type]) ? $this->_headers[$type] : '';
+        return $this->_headers[$type] ?? '';
     }
 
-    public function setParams($data)
+    public function setParams($data): self
     {
         $this->_params = $data;
 
@@ -164,7 +206,7 @@ final class HttpClient
 
     public function getParam($key)
     {
-        return isset($this->_params[$key]) ? $this->_params[$key] : false;
+        return $this->_params[$key] ?? false;
     }
 
     public function setParam($key, $value)
@@ -172,7 +214,7 @@ final class HttpClient
         return $this->_params[$key] = $value;
     }
 
-    public function setQueryParams($data)
+    public function setQueryParams($data): self
     {
         $this->_queryParams = $data;
 
@@ -186,10 +228,10 @@ final class HttpClient
 
     public function getQueryParam($key)
     {
-        return isset($this->_queryParams[$key]) ? $this->_queryParams[$key] : false;
+        return $this->_queryParams[$key] ?? false;
     }
 
-    public function setQueryParam($key, $value)
+    public function setQueryParam($key, $value): self
     {
         if (isset($this->_queryParams[$key])) {
             if (!\is_array($this->_queryParams[$key])) {
@@ -204,9 +246,10 @@ final class HttpClient
         return $this;
     }
 
-    public function setBody($body)
+    public function setBody($body): self
     {
-        $this->_body = $body;
+        $this->_body    = $body;
+        $this->_hasBody = true;
 
         return $this;
     }
@@ -218,6 +261,8 @@ final class HttpClient
 
     public function request($url, $type, $data, $headers = null, $options = null)
     {
+        $this->_responseHeaders = [];
+
         $defaultOptions = [
             'method'  => strtoupper($type),
             'headers' => empty($headers) ? $this->getHeaders() : $headers,
@@ -227,7 +272,18 @@ final class HttpClient
         ];
         $options = wp_parse_args($options, $defaultOptions);
 
-        $requestResponse = wp_remote_request($url, $options);
+        if ($this->_allowUnsafeUrls) {
+            if (!$this->isUnsafeUrlAllowed($url)) {
+                $this->_requestResponse = new WP_Error('unsafe_url_not_allowed', 'Unsafe URL host is not allowlisted.');
+
+                return $this->_requestResponse;
+            }
+
+            $options['redirection'] = 0;
+            $requestResponse        = wp_remote_request($url, $options);
+        } else {
+            $requestResponse = wp_safe_remote_request($url, $options);
+        }
 
         $this->_requestResponse = $requestResponse;
 
@@ -254,7 +310,7 @@ final class HttpClient
         return wp_remote_retrieve_response_code($this->_requestResponse);
     }
 
-    public function setDefault(array $config)
+    public function setDefault(array $config): void
     {
         if (isset($config['base_uri'])) {
             $this->setBaseUri($config['base_uri']);
@@ -283,12 +339,18 @@ final class HttpClient
         if (isset($config['multipart'])) {
             $this->setMultipart($config['multipart']);
         }
+
+        $this->allowUnsafeUrls(
+            $config['allow_unsafe_urls']    ?? false,
+            $config['allowed_unsafe_hosts'] ?? [],
+        );
     }
 
-    public function setJson($data)
+    public function setJson($data): self
     {
         $this->setContentType('application/json');
-        $this->_json = $data;
+        $this->_json    = $data;
+        $this->_hasJson = true;
 
         return $this;
     }
@@ -298,10 +360,11 @@ final class HttpClient
         return $this->_json;
     }
 
-    public function setFormParams($data)
+    public function setFormParams($data): self
     {
         $this->setContentType('application/x-www-form-urlencoded');
-        $this->_formParams = $data;
+        $this->_formParams    = $data;
+        $this->_hasFormParams = true;
 
         return $this;
     }
@@ -311,10 +374,10 @@ final class HttpClient
         return $this->_formParams;
     }
 
-    public function setMultipart($data)
+    public function setMultipart($data): self
     {
-        $this->setContentType('multipart/form-data; charset=UTF-8');
         $this->_multipart = $data;
+        $this->setMultipartContentType();
 
         return $this;
     }
@@ -328,7 +391,7 @@ final class HttpClient
     {
         $payload = null;
         if (!empty($this->_multipart)) {
-            if (!empty($this->getBody()) && !empty($this->getFormParams()) && !empty($this->getJson())) {
+            if ($this->_hasBody || $this->_hasFormParams || $this->_hasJson) {
                 throw new InvalidArgumentException('Do not use multipart with json, params or body');
             }
 
@@ -351,41 +414,152 @@ final class HttpClient
         return $payload;
     }
 
-    public function getPreparedMultipart()
+    public function getPreparedMultipart(): string
     {
         $multipart = '';
+        $boundary  = $this->getBoundary();
+        $this->setMultipartContentType();
         if (!empty($this->getMultipart()) && \is_array($this->getMultipart())) {
             foreach ($this->getMultipart() as $part) {
                 if (\is_array($part) && isset($part['name'], $part['contents'])) {
-                    $multipart .= '--' . $this->getBoundary() . '\r\n';
-                    $multipart .= 'Content-Disposition: form-data; name="' . $part['name'] . '"';
+                    $multipart .= '--' . $boundary . "\r\n";
+                    $multipart .= 'Content-Disposition: form-data; name="' . $this->quoteMultipartValue($part['name']) . '"';
                     if (isset($part['filename'])) {
-                        $multipart .= ';filename="' . $part['filename'] . '"';
+                        $multipart .= '; filename="' . $this->quoteMultipartValue($part['filename']) . '"';
                     }
 
-                    $multipart .= '\r\n';
+                    $multipart .= "\r\n";
                     if (isset($part['headers'])) {
                         if (\is_array($part['headers'])) {
                             foreach ($part['headers'] as $key => $value) {
-                                $multipart .= $key . ':';
-                                $multipart .= \is_array($value) ? implode(';', $value) : $value;
-                                $multipart .= '\r\n';
+                                $multipart .= $this->validateMultipartHeaderName($key) . ': ';
+                                $multipart .= $this->validateMultipartHeaderValue($value);
+                                $multipart .= "\r\n";
                             }
                         } elseif (\is_string($part['headers'])) {
-                            $multipart .= $part['headers'] . '\r\n';
+                            $multipart .= $this->validateMultipartMetadata($part['headers']) . "\r\n";
+                        } else {
+                            throw new InvalidArgumentException('Invalid multipart headers.');
                         }
                     }
 
+                    $multipart .= "\r\n";
                     $multipart .= $part['contents'];
-                    $multipart .= '\r\n';
+                    $multipart .= "\r\n";
                 } else {
                     throw new InvalidArgumentException('Multipart must contain name, contents');
                 }
             }
         }
 
-        $multipart .= '--' . $this->getBoundary() . '--';
+        $multipart .= '--' . $boundary . "--\r\n";
 
         return $multipart;
+    }
+
+    private function buildUrl(string $path): string
+    {
+        $baseUri = (string) $this->_baseUri;
+        $url     = $baseUri === '' ? $path : rtrim($baseUri, '/') . '/' . ltrim($path, '/');
+        $query   = http_build_query($this->getQueryParams());
+        if ($query === '') {
+            return $url;
+        }
+
+        $fragment = '';
+        if (($fragmentPosition = strpos($url, '#')) !== false) {
+            $fragment = substr($url, $fragmentPosition);
+            $url      = substr($url, 0, $fragmentPosition);
+        }
+
+        return $url . (str_contains($url, '?') ? '&' : '?') . $query . $fragment;
+    }
+
+    private function setMultipartContentType(): void
+    {
+        $this->_headers['Content-Type'] = ['multipart/form-data; boundary=' . $this->getBoundary()];
+    }
+
+    private function quoteMultipartValue($value): string
+    {
+        return addcslashes($this->validateMultipartMetadata($value), '\\"');
+    }
+
+    private function validateMultipartMetadata($value): string
+    {
+        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
+            throw new InvalidArgumentException('Invalid multipart metadata.');
+        }
+
+        return (string) $value;
+    }
+
+    private function validateMultipartHeaderName(int|string $name): string
+    {
+        if (!\is_string($name) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $name) !== 1) {
+            throw new InvalidArgumentException('Invalid multipart header name.');
+        }
+
+        return $name;
+    }
+
+    private function validateMultipartHeaderValue($value): string
+    {
+        if (\is_array($value)) {
+            $value = array_map([$this, 'validateMultipartMetadata'], $value);
+
+            return implode(';', $value);
+        }
+
+        return $this->validateMultipartMetadata($value);
+    }
+
+    private function normalizeHost($host): string
+    {
+        if (!\is_string($host)) {
+            return '';
+        }
+
+        $host = trim($host);
+        if ($host === '') {
+            return '';
+        }
+
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                return '';
+            }
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return strtolower($host);
+        }
+
+        $host = strtolower($host);
+        if (str_ends_with($host, '.')) {
+            $host = substr($host, 0, -1);
+        }
+
+        if ($host === '' || filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            return '';
+        }
+
+        return $host;
+    }
+
+    private function isUnsafeUrlAllowed($url): bool
+    {
+        $urlParts = wp_parse_url($url);
+        if (!\is_array($urlParts) || !isset($urlParts['scheme'], $urlParts['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($urlParts['scheme']);
+        $host   = $this->normalizeHost($urlParts['host']);
+
+        return \in_array($scheme, ['http', 'https'], true)
+            && $host !== ''
+            && \in_array($host, $this->_allowedUnsafeHosts, true);
     }
 }

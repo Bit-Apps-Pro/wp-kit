@@ -16,7 +16,7 @@ use RuntimeException;
  */
 final class Hooks
 {
-    private static $_hook;
+    private static ?HooksWrapper $_hook = null;
 
     public function __construct()
     {
@@ -25,7 +25,7 @@ final class Hooks
         }
     }
 
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters)
     {
         if (method_exists($this->getInstance(), $method)) {
             return \call_user_func_array([$this->getInstance(), $method], $parameters);
@@ -34,12 +34,12 @@ final class Hooks
         throw new RuntimeException('Undefined method [' . $method . '] called on Model class.');
     }
 
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters)
     {
         return (new static())->{$method}(...$parameters);
     }
 
-    public function getInstance()
+    public function getInstance(): ?HooksWrapper
     {
         return self::$_hook;
     }

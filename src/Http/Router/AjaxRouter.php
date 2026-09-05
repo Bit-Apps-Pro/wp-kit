@@ -11,26 +11,23 @@ use BitApps\WPKit\Hooks\Hooks;
  */
 final class AjaxRouter
 {
-    private $_router;
-
-    public function __construct(Router $router)
+    public function __construct(private Router $_router)
     {
-        $this->_router = $router;
     }
 
-    public function registerRoutes()
+    public function registerRoutes(): void
     {
         foreach ($this->_router->getRoutes() as $route) {
             $this->addRoute($route);
         }
     }
 
-    public function addRoute(RouteRegister $route)
+    public function addRoute(RouteRegister $route): void
     {
         $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '';
         $action        = isset($_REQUEST['action']) ? sanitize_text_field($_REQUEST['action']) : '';
 
-        if (strpos($action, $route->getRouter()->getAjaxPrefix()) === false
+        if (!str_contains($action, $route->getRouter()->getAjaxPrefix())
             || !\in_array(strtoupper($requestMethod), $route->getMethods())
         ) {
             return;
@@ -49,7 +46,7 @@ final class AjaxRouter
         $route->getRouter()->addRegisteredRoute($this->currentRouteName(), $route);
     }
 
-    public function currentRouteName()
+    public function currentRouteName(): string
     {
         $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '';
         $action        = isset($_REQUEST['action']) ? sanitize_text_field($_REQUEST['action']) : '';
@@ -67,7 +64,7 @@ final class AjaxRouter
         return $this->_router->getRegisteredRoute($this->currentRouteName());
     }
 
-    private function isRouteMatched(RouteRegister $route, $requestPath)
+    private function isRouteMatched(RouteRegister $route, string|array $requestPath)
     {
         if ($route->getRoutePrefix() . $route->getPath() === $requestPath) {
             return true;

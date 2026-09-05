@@ -15,14 +15,11 @@ final class APIRouter extends WP_REST_Controller
 
     const DELETABLE = WP_REST_Server::DELETABLE;
 
-    private $_router;
-
-    public function __construct(Router $router)
+    public function __construct(private Router $_router)
     {
-        $this->_router = $router;
     }
 
-    public function registerRoutes()
+    public function registerRoutes(): void
     {
         foreach ($this->_router->getRoutes() as $route) {
             $this->addRoute($route);
@@ -34,7 +31,7 @@ final class APIRouter extends WP_REST_Controller
      *
      * @param RouteRegister $route api route
      */
-    public function addRoute(RouteRegister $route)
+    public function addRoute(RouteRegister $route): void
     {
         $args = [];
         foreach ($route->getMethods() as $method) {
@@ -48,7 +45,7 @@ final class APIRouter extends WP_REST_Controller
         $path   = $route->hasRegex() ? $route->regex() : $route->getPath();
         $prefix = $route->getRoutePrefix();
         if ($prefix) {
-            if (substr($prefix, -1) !== '/') {
+            if (!str_ends_with($prefix, '/')) {
                 $path = $prefix . '/' . $path;
             } else {
                 $path = $prefix . $path;
@@ -63,21 +60,12 @@ final class APIRouter extends WP_REST_Controller
 
     public function getMethod($method)
     {
-        switch (strtolower($method)) {
-            case 'get':
-                return self::READABLE;
-
-            case 'post':
-                return self::CREATABLE;
-
-            case 'put':
-                return self::EDITABLE;
-
-            case 'delete':
-                return self::DELETABLE;
-
-            default:
-                return self::READABLE;
-        }
+        return match (strtolower($method)) {
+            'get'    => self::READABLE,
+            'post'   => self::CREATABLE,
+            'put'    => self::EDITABLE,
+            'delete' => self::DELETABLE,
+            default  => self::READABLE,
+        };
     }
 }

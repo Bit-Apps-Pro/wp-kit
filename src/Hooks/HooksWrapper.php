@@ -16,7 +16,7 @@ final class HooksWrapper
      *
      * @return void
      */
-    public function doAction($tag, ...$arg)
+    public function doAction($tag, ...$arg): void
     {
         do_action($tag, ...$arg);
     }

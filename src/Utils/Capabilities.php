@@ -11,7 +11,7 @@ final class Capabilities
         return current_user_can($cap, ...$args);
     }
 
-    public static function filter($cap, $default = 'manage_options')
+    public static function filter($cap, $default = 'manage_options'): bool
     {
         return static::check($cap) || static::check(Hooks::applyFilter($cap, $default));
     }

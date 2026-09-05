@@ -6,63 +6,56 @@ use BitApps\WPKit\Http\Request\Request;
 use BitApps\WPKit\Http\RequestType;
 use BitApps\WPKit\Http\Response;
 
+use Closure;
+use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
 use WP_REST_Request;
-use WP_REST_Response;
 
 final class RouteRegister
 {
     private $_name;
 
-    private $_methods = [];
+    private array $_methods = [];
 
     private $_action;
 
     private $_path;
 
-    private $_routeBase;
+    private $_routeParams = [];
 
-    private $_routeParams;
+    private $_routeParamValues = [];
 
-    private $_routeParamValues;
-
-    private $_regex;
-
-    private $_regexMatched;
-
-    private $_middleware = [];
+    private array $_middleware = [];
 
     /**
-     * Instance of rest request
-     *
-     * @var WP_REST_Response
-     */
-    private $_restResponse;
-
-    /**
-     * Instance of rest request
+     * Instance of rest request.
      *
      * @var WP_REST_Request
      */
     private $_restRequest;
 
     /**
-     * Instance of Request
+     * Instance of Request.
      *
      * @var Request
      */
     private $_request;
 
-    private $_response = [];
+    private array $_response = [];
 
-    public function __construct(RouteBase $routeBase)
+    private ?int $_bufferLevel = null;
+
+    private $_compiled;
+
+    private bool $_compiledDone = false;
+
+    public function __construct(private RouteBase $_routeBase)
     {
-        $this->_routeBase = $routeBase;
     }
 
-    public function match($methods, $path, $action)
+    public function match($methods, $path, $action): self
     {
         if (\is_string($methods)) {
             $methods = explode(',', $methods);
@@ -75,22 +68,22 @@ final class RouteRegister
         return $this;
     }
 
-    public function get($path, $action)
+    public function get($path, $action): RouteRegister
     {
         return $this->register('GET', $path, $action);
     }
 
-    public function post($path, $action)
+    public function post($path, $action): RouteRegister
     {
         return $this->register('POST', $path, $action);
     }
 
-    public function getMethods()
+    public function getMethods(): array
     {
         return $this->_methods;
     }
 
-    public function action($action)
+    public function action($action): self
     {
         $this->_action = $action;
 
@@ -102,9 +95,10 @@ final class RouteRegister
         return $this->_action;
     }
 
-    public function path($path)
+    public function path($path): self
     {
-        $this->_path = $path;
+        $this->_path         = $path;
+        $this->_compiledDone = false;
 
         return $this;
     }
@@ -114,7 +108,7 @@ final class RouteRegister
         return $this->_path;
     }
 
-    public function name($name)
+    public function name($name): self
     {
         $this->_name = $name;
 
@@ -138,63 +132,41 @@ final class RouteRegister
 
     public function regex()
     {
-        if (isset($this->_regex)) {
-            return $this->_regex;
-        }
-
-        if (!$this->hasRegex()) {
+        if ($this->compiledPattern() === null) {
             return false;
         }
 
         return $this->makeRegex();
     }
 
-    public function hasRegex()
+    public function hasRegex(): bool
     {
-        if (!isset($this->_path) || (isset($this->_regexMatched) && empty($this->_regexMatched[0]))) {
-            return false;
-        }
-
-        return !(preg_match_all('/\{\w+\??\}\??/', $this->_path, $this->_regexMatched) === false
-            || empty($this->_regexMatched[0])
-        );
+        return $this->compiledPattern() !== null;
     }
 
-    public function getMiddleware()
+    public function getMiddleware(): array
     {
         return array_merge($this->_routeBase->getMiddleware(), $this->_middleware);
     }
 
-    public function middleware()
+    public function middleware(): self
     {
         $this->_middleware = array_merge($this->_middleware, \func_get_args());
 
         return $this;
     }
 
-    public function handleMiddleware()
+    public function handleMiddleware(): bool
     {
-        if (empty($middlewares = $this->getMiddleware())) {
-            return;
+        try {
+            $this->runMiddlewares();
+        } catch (RouteBlockedException $exception) {
+            $this->recordBlock($exception);
+
+            return false;
         }
 
-        $router = $this->getRouter();
-        foreach ($middlewares as $middleware) {
-            $middlewareData = explode(':', (string) $middleware);
-            $middleware     = $middlewareData[0];
-            $params         = [];
-            if (isset($middlewareData[1])) {
-                $params = explode(',', (string) $middlewareData[1]);
-            }
-
-            if (
-                ($middlewareObj = $router->getRegisteredMiddleware($middleware))
-                && ($response = $this->invokeAsReflection($middlewareObj, 'handle', $params)) !== true
-            ) {
-                $this->setResponse($response);
-                $this->sendResponse();
-            }
-        }
+        return true;
     }
 
     public function getRoutePrefix()
@@ -216,7 +188,7 @@ final class RouteRegister
         return $this->_routeParams;
     }
 
-    public function setRouteParamValue($name, $value)
+    public function setRouteParamValue($name, $value): void
     {
         $this->_routeParamValues[$name] = $value;
     }
@@ -232,45 +204,13 @@ final class RouteRegister
 
     public function getParamValue(ReflectionParameter $param)
     {
-        $value = !$param->isOptional() && $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+        try {
+            return $this->resolveParamValue($param);
+        } catch (RouteBlockedException $exception) {
+            $this->recordBlock($exception);
 
-        $paramName = $param->getName();
-        if ($isRouteParam = $this->getRouteParamValue($paramName)) {
-            $value = $isRouteParam;
+            return;
         }
-
-        if (!$type = $param->getType()) {
-            return $value;
-        }
-
-        if ($type instanceof ReflectionNamedType) {
-            $type = $type->getName();
-        } else {
-            $type = (string) $type;
-        }
-
-        if (!class_exists($type)) {
-            return $value;
-        }
-
-        if (Request::class === $type || is_subclass_of($type, Request::class)) {
-            $this->setRequest($type);
-            $value = $this->getRequest();
-        } elseif ($isRouteParam && $value === $isRouteParam && method_exists($type, '__construct')) {
-            $constructor = new ReflectionMethod($type, '__construct');
-            if ($constructor->getNumberOfParameters() === 1) {
-                $parameter = $constructor->getParameters()[0];
-                if (!$parameter->hasType()) {
-                    $value = new $type($value);
-                } elseif (method_exists($type, 'query')) {
-                    $value = $type::query()->find($value);
-                }
-            }
-        } elseif (!$param->isOptional()) {
-            $value = new $type();
-        }
-
-        return $value;
     }
 
     public function getRouteParamValues()
@@ -285,11 +225,13 @@ final class RouteRegister
      */
     public function getRequest()
     {
-        if (!isset($this->_request)) {
-            $this->setRequest();
-        }
+        try {
+            return $this->resolveRequest();
+        } catch (RouteBlockedException $exception) {
+            $this->recordBlock($exception);
 
-        return $this->_request;
+            return $this->_request;
+        }
     }
 
     /**
@@ -314,29 +256,108 @@ final class RouteRegister
 
     public function handleRequest()
     {
+        $this->_response = [];
+        unset($this->_request, $this->_restRequest);
+        Response::reset();
+
+        $this->_bufferLevel = ob_get_level();
         ob_start();
         if (\func_num_args() && ($apiRequest = \func_get_args()[0]) instanceof WP_REST_Request) {
             $this->setRestRequest($apiRequest);
         }
 
-        $this->handleMiddleware();
-        $this->handleAction($this);
-
-        if (ob_get_level()) {
-            ob_clean();
+        try {
+            $this->runMiddlewares();
+            $this->handleAction();
+        } catch (RouteBlockedException $exception) {
+            $this->recordBlock($exception);
+        } finally {
+            // an action throwing anything else must not leak the buffer we opened
+            $this->collectBufferedOutput();
         }
 
         return $this->sendResponse();
     }
 
-    private function setRestRequest(WP_REST_Request $request)
+    private function resolveParamValue(ReflectionParameter $param)
     {
-        $this->_restRequest = $request;
+        $value         = $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null;
+        $paramName     = $param->getName();
+        $hasRouteParam = $this->hasRouteParamValue($paramName);
+        if ($hasRouteParam) {
+            $value = $this->_routeParamValues[$paramName];
+        }
+
+        if (!$type = $param->getType()) {
+            return $value;
+        }
+
+        if ($type instanceof ReflectionNamedType) {
+            $type = $type->getName();
+        } else {
+            $type = (string) $type;
+        }
+
+        if (!class_exists($type)) {
+            return $value;
+        }
+
+        if ($type === Request::class || is_subclass_of($type, Request::class)) {
+            $this->setRequest($type);
+            $value = $this->resolveRequest();
+        } elseif ($hasRouteParam && method_exists($type, '__construct')) {
+            $constructor = new ReflectionMethod($type, '__construct');
+            if ($constructor->getNumberOfParameters() === 1) {
+                $parameter = $constructor->getParameters()[0];
+                if (!$parameter->hasType()) {
+                    $value = new $type($value);
+                } elseif (method_exists($type, 'query')) {
+                    $value = $type::query()->find($value);
+                }
+            }
+        } elseif (!$param->isOptional()) {
+            $value = new $type();
+        }
+
+        return $value;
     }
 
-    private function getRestRequest()
+    private function hasRouteParamValue(string $name): bool
     {
-        return $this->_restRequest;
+        return \array_key_exists($name, $this->_routeParamValues);
+    }
+
+    private function runMiddlewares(): void
+    {
+        if (empty($middlewares = $this->getMiddleware())) {
+            return;
+        }
+
+        $router = $this->getRouter();
+        foreach ($middlewares as $middleware) {
+            $middlewareData = explode(':', (string) $middleware);
+            $middleware     = $middlewareData[0];
+            $params         = [];
+            if (isset($middlewareData[1])) {
+                $params = explode(',', (string) $middlewareData[1]);
+            }
+
+            try {
+                $middlewareObj = $router->getRegisteredMiddleware($middleware);
+            } catch (MiddlewareConfigurationException) {
+                throw new RouteBlockedException(Response::error([], 500)->code('MIDDLEWARE_CONFIGURATION')->message('Route middleware is not configured'));
+            }
+
+            $response = $this->invokeAsReflection($middlewareObj, 'handle', $params);
+            if ($response !== true) {
+                $this->block($response);
+            }
+        }
+    }
+
+    private function setRestRequest(WP_REST_Request $request): void
+    {
+        $this->_restRequest = $request;
     }
 
     /**
@@ -344,6 +365,15 @@ final class RouteRegister
      *
      * @param Request $request
      */
+    private function resolveRequest()
+    {
+        if (!isset($this->_request)) {
+            $this->setRequest();
+        }
+
+        return $this->_request;
+    }
+
     private function setRequest($request = null)
     {
         if ($request === null) {
@@ -362,7 +392,7 @@ final class RouteRegister
         return $this->_request;
     }
 
-    private function authorize()
+    private function authorize(): void
     {
         if (method_exists($this->_request, 'authorize') && !$this->_request->authorize()) {
             $message = 'You are not authorized to access this endpoint';
@@ -370,17 +400,15 @@ final class RouteRegister
                 $message = $this->_request->failedAuthorizationMessage();
             }
 
-            $this->setResponse(
+            $this->block(
                 Response::error([])
                     ->code('NOT_AUTHORIZED')
                     ->message($message)
             );
-
-            $this->sendResponse();
         }
     }
 
-    private function validate()
+    private function validate(): void
     {
         if (method_exists($this->_request, 'rules')) {
             $messages   = [];
@@ -402,13 +430,12 @@ final class RouteRegister
             );
 
             if ($validation->fails()) {
-                $this->setResponse(Response::error($validation->errors())->code('VALIDATION'));
-                $this->sendResponse();
+                $this->block(Response::error($validation->errors())->code('VALIDATION'));
             }
         }
     }
 
-    private function register($method, $path, $action)
+    private function register($method, $path, $action): self
     {
         $this->_methods[] = strtoupper($method);
         $this->path($path);
@@ -419,39 +446,70 @@ final class RouteRegister
 
     private function makeRegex()
     {
-        $path = str_replace('/', '\\/', $this->_path);
-        foreach ($this->_regexMatched[0] as $param) {
-            $name     = trim($param, '{}?');
-            $required = true;
-            if (strpos($param, '?')) {
-                $required = false;
-            }
-
-            $this->setRouteParam($name, ['required' => $required]);
-            $regexToSet = "(?P<{$name}>[^\\/]+)" . ($required ? '' : '?');
-            $path       = str_replace($param, $regexToSet, $path);
+        $compiled = $this->compiledPattern();
+        foreach ($compiled['params'] as $name => $attribute) {
+            $this->setRouteParam($name, $attribute);
         }
 
-        return $path;
+        return $compiled['regex'];
     }
 
-    private function setRouteParam($name, $attribute)
+    /**
+     * Compiles the route path once and memoizes it (null when the path has no placeholders).
+     *
+     * @return null|array
+     */
+    private function compiledPattern()
+    {
+        if (!$this->_compiledDone) {
+            $this->_compiled     = isset($this->_path) ? RoutePattern::compile($this->_path) : null;
+            $this->_compiledDone = true;
+        }
+
+        return $this->_compiled;
+    }
+
+    private function setRouteParam($name, $attribute): void
     {
         $this->_routeParams[$name] = $attribute;
     }
 
-    private function handleAction()
+    private function handleAction(): void
     {
         $action = $this->getAction();
-        if (method_exists($action[0], $action[1])) {
+        if (\is_array($action) && method_exists($action[0], $action[1])) {
             $response = $this->invokeAsReflection($action[0], $action[1]);
-            $this->setResponse($response);
+        } elseif (\is_callable($action)) {
+            $response = $this->invokeAsReflectionFunction($action);
         } else {
-            $this->setResponse(Response::message('Route action doesn\'t exists'));
+            $response = Response::message('Route action doesn\'t exists');
         }
+
+        $this->setResponse($response);
     }
 
-    private function invokeAsReflection($class, $method, $params = [])
+    /**
+     * @param Closure|string $method
+     */
+    private function invokeAsReflectionFunction(callable $method): mixed
+    {
+        $reflectionFunction = new ReflectionFunction($method);
+        $params             = $this->processParameters($reflectionFunction->getParameters());
+
+        return $reflectionFunction->invoke(...$params);
+    }
+
+    private function processParameters($reflectionParams, array $params = []): array
+    {
+        $requestParams = [];
+        foreach ($reflectionParams as $param) {
+            $requestParams[] = $this->resolveParamValue($param);
+        }
+
+        return array_merge($requestParams, $params);
+    }
+
+    private function invokeAsReflection($class, $method, array $params = []): mixed
     {
         $reflectionMethod = new ReflectionMethod($class, $method);
         $reflectionParams = $reflectionMethod->getParameters();
@@ -459,91 +517,57 @@ final class RouteRegister
         /**
          * If the ReflectionMethod is a method of a Middleware then we will set the first parameter.
          * First parameter will be Request object
-         * Rest of params will be from Middleware ex: 'role:admin'
+         * Rest of params will be from Middleware ex: 'role:admin'.
          *
          * If params count is 0 then the method is handle of Middleware and called from handleMiddleware
          */
         $reflectionParams = \count($params) === 0 ? $reflectionParams : [$reflectionParams[0]];
 
-        $requestParams = [];
-        foreach ($reflectionParams as $param) {
-            $requestParams[] = $this->getParamValue($param);
-        }
-
-        if (RequestType::is(RequestType::API) && isset($this->_restResponse)) {
-            // maybe failed at middleware,authorization or validation
-
-            return Response::instance();
-        }
-        $params = array_merge($requestParams, $params);
+        $params = $this->processParameters($reflectionParams, $params);
 
         return $reflectionMethod->invoke($reflectionMethod->isStatic() ? null : new $class(), ...$params);
     }
 
-    private function setResponse($response)
+    private function block($response): void
     {
-        if (is_wp_error($response)) {
-            $response = Response::error($response->get_error_data())
-                ->code($response->get_error_code())
-                ->message($response->get_error_message());
-        } elseif (!$response instanceof Response) {
-            $response = Response::success($response)->code('SUCCESS');
+        throw new RouteBlockedException($response);
+    }
+
+    private function recordBlock(RouteBlockedException $exception): void
+    {
+        $this->setResponse($exception->getResponse());
+    }
+
+    /**
+     * Captures stray output from the buffer handleRequest() opened; never touches buffers owned by others.
+     */
+    private function collectBufferedOutput(): string|false
+    {
+        if ($this->_bufferLevel === null || ob_get_level() <= $this->_bufferLevel) {
+            return '';
         }
 
-        if ($status = $response->getStatus()) {
-            $responseData['status'] = $status;
-        }
+        $this->_bufferLevel = null;
 
-        if ($message = $response->getMessage()) {
-            $responseData['message'] = $message;
-        }
+        return ob_get_clean();
+    }
 
-        if ($code = $response->getCode()) {
-            $responseData['code'] = $code;
-        }
-
-        $responseData['data'] = $response->getData();
-        $additional           = ob_get_clean();
-        if (!empty($additional)) {
-            $responseData['additional'] = $additional;
-        }
-
-        $this->_response = [
-            'data'        => $responseData,
-            'http_status' => $response->getHttpStatusCode(),
-            'headers'     => $response->getHeaders(),
-        ];
+    private function setResponse($response): void
+    {
+        $this->_response = ResponseEnvelope::build($response, $this->collectBufferedOutput());
     }
 
     private function sendResponse()
     {
-        if (RequestType::API === $this->getRouterType()) {
-            return $this->sendApiResponse();
-        }
-
-        $this->sendAjaxResponse();
+        return $this->resolveEmitter()->emit($this->_response);
     }
 
-    private function sendApiResponse()
+    private function resolveEmitter(): Emitter\ResponseEmitter
     {
-        $restResponse = new WP_REST_Response();
-        $restResponse->set_data($this->_response['data']);
-        $restResponse->set_status($this->_response['http_status']);
-        $restResponse->set_headers($this->_response['headers']);
-
-        $this->_restResponse = $restResponse; // will USE this to return before middleware or action  excutes
-
-        return $restResponse;
-    }
-
-    private function sendAjaxResponse()
-    {
-        if (!headers_sent() && $this->_response['headers']) {
-            foreach ($this->_response['headers'] as $key => $value) {
-                header("{$key}: {$value}");
-            }
-        }
-
-        wp_send_json($this->_response['data'], $this->_response['http_status']);
+        return match ($this->getRouterType()) {
+            RequestType::API  => new Emitter\ApiResponseEmitter(),
+            RequestType::AJAX => new Emitter\AjaxResponseEmitter(),
+            default           => new Emitter\RawResponseEmitter(),
+        };
     }
 }

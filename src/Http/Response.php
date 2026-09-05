@@ -2,33 +2,46 @@
 
 namespace BitApps\WPKit\Http;
 
+use InvalidArgumentException;
+
 final class Response
 {
     const SUCCESS = 'success';
 
     const ERROR = 'error';
 
-    private static $_instance;
+    private static ?Response $_current = null;
 
-    private static $_message;
+    private $_message;
 
-    private static $_status;
+    private ?string $_status = null;
 
-    private static $_code;
+    private $_code;
 
-    private static $_data;
+    private $_data;
 
-    private static $_httpStatus;
+    private $_httpStatus;
 
-    private static $_headers = [];
+    private array $_headers = [];
 
-    public static function instance()
+    public static function instance(): Response
     {
-        if (\is_null(self::$_instance)) {
-            self::$_instance = new self();
-        }
+        return self::current();
+    }
 
-        return self::$_instance;
+    public static function reset(): self
+    {
+        return self::$_current = new self();
+    }
+
+    /**
+     * Makes an existing response the current one so the static accessors read it back.
+     *
+     * @return self
+     */
+    public static function adopt(self $response): self
+    {
+        return self::$_current = $response;
     }
 
     /**
@@ -39,14 +52,9 @@ final class Response
      *
      * @return self
      */
-    public static function success($data, $httpStatus = 200)
+    public static function success($data, $httpStatus = 200): self
     {
-        self::$_data   = $data;
-        self::$_status = self::SUCCESS;
-
-        self::$_httpStatus = $httpStatus;
-
-        return self::instance();
+        return self::start($data, self::SUCCESS, $httpStatus);
     }
 
     /**
@@ -57,14 +65,9 @@ final class Response
      *
      * @return self
      */
-    public static function error($data, $httpStatus = 400)
+    public static function error($data, $httpStatus = 400): self
     {
-        self::$_data   = $data;
-        self::$_status = self::ERROR;
-
-        self::$_httpStatus = $httpStatus;
-
-        return self::instance();
+        return self::start($data, self::ERROR, $httpStatus);
     }
 
     /**
@@ -74,7 +77,7 @@ final class Response
      */
     public static function getData()
     {
-        return self::$_data;
+        return self::current()->_data;
     }
 
     /**
@@ -82,9 +85,9 @@ final class Response
      *
      * @return string $_status
      */
-    public static function getStatus()
+    public static function getStatus(): ?string
     {
-        return self::$_status;
+        return self::current()->_status;
     }
 
     /**
@@ -94,11 +97,12 @@ final class Response
      *
      * @return self
      */
-    public static function message($message)
+    public static function message($message): self
     {
-        self::$_message = $message;
+        $current           = self::current();
+        $current->_message = $message;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -108,7 +112,7 @@ final class Response
      */
     public static function getMessage()
     {
-        return self::$_message;
+        return self::current()->_message;
     }
 
     /**
@@ -118,11 +122,12 @@ final class Response
      *
      * @return self
      */
-    public static function code($code)
+    public static function code($code): self
     {
-        self::$_code = $code;
+        $current        = self::current();
+        $current->_code = $code;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -132,25 +137,27 @@ final class Response
      */
     public static function getCode()
     {
-        if (!isset(self::$_code)) {
-            return strtoupper(self::$_status);
+        $current = self::current();
+        if (!isset($current->_code)) {
+            return isset($current->_status) ? strtoupper($current->_status) : null;
         }
 
-        return self::$_code;
+        return $current->_code;
     }
 
     /**
      * Sets http status code for response.
      *
-     * @param string $code http status code to return on response
+     * @param int $code http status code to return on response
      *
      * @return self
      */
-    public static function httpStatus($code)
+    public static function httpStatus($code): self
     {
-        self::$_httpStatus = $code;
+        $current              = self::current();
+        $current->_httpStatus = $code;
 
-        return self::instance();
+        return $current;
     }
 
     /**
@@ -160,9 +167,10 @@ final class Response
      */
     public static function getHttpStatusCode()
     {
-        $statusCode = self::$_httpStatus;
+        $current    = self::current();
+        $statusCode = $current->_httpStatus;
         if (!$statusCode) {
-            $statusCode = self::ERROR === self::$_status ? 400 : 200;
+            $statusCode = self::ERROR === $current->_status ? 400 : 200;
         }
 
         return $statusCode;
@@ -171,15 +179,26 @@ final class Response
     /**
      * Sets http headers for response.
      *
-     * @param string $headers http headers to return on response
+     * @param array $headers http headers to return on response
      *
      * @return self
      */
-    public static function headers($headers)
+    public static function headers($headers): Response
     {
-        self::$_headers = $headers;
+        if (!\is_array($headers)) {
+            throw new InvalidArgumentException('Response headers must be an array.');
+        }
 
-        return self::instance();
+        $validated = [];
+        foreach ($headers as $header => $value) {
+            [$header, $value]   = self::validateHeader($header, $value);
+            $validated[$header] = $value;
+        }
+
+        $current           = self::current();
+        $current->_headers = $validated;
+
+        return $current;
     }
 
     /**
@@ -190,11 +209,14 @@ final class Response
      *
      * @return self
      */
-    public static function header($header, $value)
+    public static function header($header, $value): self
     {
-        self::$_headers[$header] = $value;
+        [$header, $value] = self::validateHeader($header, $value);
 
-        return self::instance();
+        $current                    = self::current();
+        $current->_headers[$header] = $value;
+
+        return $current;
     }
 
     /**
@@ -202,8 +224,40 @@ final class Response
      *
      * @return array $_headers
      */
-    public static function getHeaders()
+    public static function getHeaders(): array
     {
-        return self::$_headers;
+        return self::current()->_headers;
+    }
+
+    private static function start($data, string $status, $httpStatus): self
+    {
+        $response              = new self();
+        $response->_data       = $data;
+        $response->_status     = $status;
+        $response->_httpStatus = $httpStatus;
+
+        return self::$_current = $response;
+    }
+
+    private static function validateHeader($header, $value): array
+    {
+        if (!\is_string($header) || preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/D', $header) !== 1) {
+            throw new InvalidArgumentException('Invalid response header name.');
+        }
+
+        if (!\is_scalar($value) || preg_match('/[\r\n\0]/', (string) $value)) {
+            throw new InvalidArgumentException('Invalid response header value.');
+        }
+
+        return [$header, $value];
+    }
+
+    private static function current(): Response
+    {
+        if (\is_null(self::$_current)) {
+            self::$_current = new self();
+        }
+
+        return self::$_current;
     }
 }
